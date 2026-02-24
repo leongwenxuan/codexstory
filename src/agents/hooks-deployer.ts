@@ -30,7 +30,7 @@ const COORDINATION_CAPABILITIES = new Set(["coordinator", "supervisor", "monitor
 const COORDINATION_SAFE_PREFIXES = ["git add", "git commit"];
 
 /**
- * Claude Code native team/task tools that bypass codexstory orchestration.
+ * Codex native team/task tools that bypass codexstory orchestration.
  * All codexstory agents must use `codexstory sling` for delegation, not these.
  */
 const NATIVE_TEAM_TOOLS = [
@@ -115,7 +115,7 @@ const SAFE_BASH_PREFIXES = [
 	"bun run biome",
 ];
 
-/** Hook entry shape matching Claude Code's settings.local.json format. */
+/** Hook entry shape matching Codex's settings.local.json format. */
 interface HookEntry {
 	matcher: string;
 	hooks: Array<{ type: string; command: string }>;
@@ -134,10 +134,10 @@ function getTemplatePath(): string {
  * Env var guard prefix for hook commands.
  *
  * When hooks are deployed to the project root (e.g. for the coordinator),
- * they affect ALL Claude Code sessions in that directory. This prefix
+ * they affect ALL Codex sessions in that directory. This prefix
  * ensures hooks only activate for codexstory-managed agent sessions
  * (which have CODEXSTORY_AGENT_NAME set in their environment) and are
- * no-ops for the user's own Claude Code session.
+ * no-ops for the user's own Codex session.
  */
 const ENV_GUARD = '[ -z "$CODEXSTORY_AGENT_NAME" ] && exit 0;';
 
@@ -201,7 +201,7 @@ export function getPathBoundaryGuards(): HookEntry[] {
 /**
  * Build a PreToolUse guard that blocks a specific tool.
  *
- * Returns a JSON response with decision=block so Claude Code rejects
+ * Returns a JSON response with decision=block so Codex rejects
  * the tool call before execution.
  */
 function blockGuard(toolName: string, reason: string): HookEntry {
@@ -220,7 +220,7 @@ function blockGuard(toolName: string, reason: string): HookEntry {
 /**
  * Build a Bash guard script that inspects the command from stdin JSON.
  *
- * Claude Code PreToolUse hooks receive `{"tool_name": "Bash", "tool_input": {"command": "..."}, ...}` on stdin.
+ * Codex PreToolUse hooks receive `{"tool_name": "Bash", "tool_input": {"command": "..."}, ...}` on stdin.
  * This builds a bash script that reads stdin, extracts the command, and checks for
  * dangerous patterns (push to canonical branch, hard reset, wrong branch naming).
  */
@@ -228,7 +228,7 @@ function buildBashGuardScript(agentName: string): string {
 	// The script reads JSON from stdin, extracts the command field, then checks patterns.
 	// Uses parameter expansion to avoid requiring jq (zero runtime deps).
 	const script = [
-		// Only enforce for codexstory agent sessions (skip for user's own Claude Code)
+		// Only enforce for codexstory agent sessions (skip for user's own Codex)
 		ENV_GUARD,
 		"read -r INPUT;",
 		// Extract command value from JSON — grab everything after "command": (with optional space)
@@ -302,7 +302,7 @@ export function buildBashFileGuardScript(
 	const dangerPattern = DANGEROUS_BASH_PATTERNS.join("|");
 
 	const script = [
-		// Only enforce for codexstory agent sessions (skip for user's own Claude Code)
+		// Only enforce for codexstory agent sessions (skip for user's own Codex)
 		ENV_GUARD,
 		"read -r INPUT;",
 		// Extract command value from JSON (with optional space after colon)
@@ -427,7 +427,7 @@ export function getBashPathBoundaryGuards(): HookEntry[] {
  * - Bash path boundary guards (validates absolute paths stay in worktree)
  *
  * All codexstory-managed agents get:
- * - Claude Code native team/task tool blocks (Task, TeamCreate, SendMessage, etc.)
+ * - Codex native team/task tool blocks (Task, TeamCreate, SendMessage, etc.)
  *   to ensure delegation goes through codexstory sling
  *
  * Note: All capabilities also receive Bash danger guards via getDangerGuards().
@@ -435,7 +435,7 @@ export function getBashPathBoundaryGuards(): HookEntry[] {
 export function getCapabilityGuards(capability: string): HookEntry[] {
 	const guards: HookEntry[] = [];
 
-	// Block Claude Code native team/task tools for ALL codexstory agents.
+	// Block Codex native team/task tools for ALL codexstory agents.
 	// Agents must use `codexstory sling` for delegation, not native Task/Team tools.
 	const teamToolGuards = NATIVE_TEAM_TOOLS.map((tool) =>
 		blockGuard(
@@ -509,7 +509,7 @@ export async function deployHooks(
 	agentName: string,
 	capability = "builder",
 ): Promise<void> {
-	// Codex CLI does not currently expose Claude-style lifecycle hooks
+	// Codex CLI does not currently expose Codex-style lifecycle hooks
 	// (SessionStart/UserPromptSubmit/PreToolUse/PostToolUse/Stop) that this
 	// deployer was built around. For codexstory MVP we intentionally make hook
 	// deployment a no-op and rely on `codexstory hooks status` guidance.
@@ -557,14 +557,14 @@ export async function deployHooks(
 		config.hooks.PreToolUse = [...allGuards, ...preToolUse];
 	}
 
-	const claudeDir = join(worktreePath, ".codex");
-	const outputPath = join(claudeDir, "settings.local.json");
+	const codexDir = join(worktreePath, ".codex");
+	const outputPath = join(codexDir, "settings.local.json");
 
 	try {
-		await mkdir(claudeDir, { recursive: true });
+		await mkdir(codexDir, { recursive: true });
 	} catch (err) {
 		const cause = err instanceof Error ? err : new Error(String(err));
-		throw new AgentError(`Failed to create .codex/ directory at: ${claudeDir}`, {
+		throw new AgentError(`Failed to create .codex/ directory at: ${codexDir}`, {
 			agentName,
 			cause: cause as Error,
 		});

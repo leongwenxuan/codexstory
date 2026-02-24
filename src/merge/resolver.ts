@@ -4,7 +4,7 @@
  * Implements a 4-tier escalation strategy:
  *   1. Clean merge — git merge with no conflicts
  *   2. Auto-resolve — parse conflict markers, keep incoming (agent) changes
- *   3. AI-resolve — use Claude to resolve remaining conflicts
+ *   3. AI-resolve — use Codex to resolve remaining conflicts
  *   4. Re-imagine — abort merge and reimplement changes from scratch
  *
  * Each tier is attempted in order. If a tier fails, the next is tried.
@@ -191,8 +191,8 @@ export function looksLikeProse(text: string): boolean {
 }
 
 /**
- * Tier 3: AI-assisted conflict resolution using Claude.
- * Spawns `claude --print` for each conflicted file with the conflict content.
+ * Tier 3: AI-assisted conflict resolution using Codex.
+ * Spawns `codex exec` for each conflicted file with the conflict content.
  * Validates that output looks like code, not conversational prose.
  */
 async function tryAiResolve(
@@ -265,7 +265,7 @@ async function tryAiResolve(
 
 /**
  * Tier 4: Re-imagine — abort the merge and reimplement changes from scratch.
- * Uses Claude to reimplement the agent's changes on top of the canonical version.
+ * Uses Codex to reimplement the agent's changes on top of the canonical version.
  */
 async function tryReimagine(
 	entry: MergeEntry,

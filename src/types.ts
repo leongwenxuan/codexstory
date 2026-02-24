@@ -1,10 +1,10 @@
 // === Model & Provider Types ===
 
-/** Backward-compatible model alias for Anthropic models. */
-export type ModelAlias = "sonnet" | "opus" | "haiku";
+/** Model aliases used by codexstory defaults. */
+export type ModelAlias = "gpt-5-codex" | "gpt-5.2-codex" | "gpt-5.3-codex";
 
 /**
- * A model reference: either a simple alias ('sonnet') or a provider-qualified
+ * A model reference: either a simple alias ('gpt-5-codex') or a provider-qualified
  * string ('provider/model', e.g. 'openrouter/openai/gpt-5.3').
  */
 export type ModelRef = ModelAlias | (string & {});
@@ -132,7 +132,7 @@ export interface AgentSession {
 	beadId: string; // Task being worked
 	tmuxSession: string; // Tmux session name
 	state: AgentState;
-	pid: number | null; // Claude Code PID
+	pid: number | null; // Codex PID
 	parentAgent: string | null; // Who spawned this agent (null = orchestrator)
 	depth: number; // 0 = direct from orchestrator
 	runId: string | null; // Groups sessions in the same orchestrator run
@@ -668,7 +668,7 @@ export interface SessionHandoff {
 
 /**
  * Three-layer model for agent persistence.
- * Session = ephemeral Claude runtime
+ * Session = ephemeral Codex runtime
  * Sandbox = git worktree (persists across sessions)
  * Identity = permanent agent record (persists across assignments)
  */

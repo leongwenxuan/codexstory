@@ -198,7 +198,7 @@ async function startSupervisor(args: string[]): Promise<void> {
 			join(projectRoot, config.agents.baseDir),
 		);
 		const manifest = await manifestLoader.load();
-		const { model, env } = resolveModel(config, manifest, "supervisor", "opus");
+		const { model, env } = resolveModel(config, manifest, "supervisor", "gpt-5.3-codex");
 
 		// Spawn tmux session at project root with Codex (interactive mode).
 		const tmuxSession = `codexstory-${config.project.name}-supervisor-${flags.name}`;

@@ -890,11 +890,11 @@ describe("capturePaneContent", () => {
 	});
 
 	test("returns trimmed content on success", async () => {
-		spawnSpy.mockImplementation(() => mockSpawnResult("  Welcome to Claude Code!  \n\n", "", 0));
+		spawnSpy.mockImplementation(() => mockSpawnResult("  Welcome to Codex!  \n\n", "", 0));
 
 		const content = await capturePaneContent("codexstory-agent");
 
-		expect(content).toBe("Welcome to Claude Code!");
+		expect(content).toBe("Welcome to Codex!");
 	});
 
 	test("passes correct args to tmux capture-pane", async () => {
@@ -951,7 +951,7 @@ describe("waitForTuiReady", () => {
 	});
 
 	test("returns true immediately when pane has content on first poll", async () => {
-		spawnSpy.mockImplementation(() => mockSpawnResult("Claude Code ready", "", 0));
+		spawnSpy.mockImplementation(() => mockSpawnResult("Codex ready", "", 0));
 
 		const ready = await waitForTuiReady("codexstory-agent", 5_000, 500);
 
@@ -969,7 +969,7 @@ describe("waitForTuiReady", () => {
 				return mockSpawnResult("", "", 0);
 			}
 			// 4th poll: content appears
-			return mockSpawnResult("Welcome to Claude Code!", "", 0);
+			return mockSpawnResult("Welcome to Codex!", "", 0);
 		});
 
 		const ready = await waitForTuiReady("codexstory-agent", 10_000, 500);

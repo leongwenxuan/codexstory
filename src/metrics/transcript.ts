@@ -1,5 +1,5 @@
 /**
- * Parser for Claude Code transcript JSONL files.
+ * Parser for Codex transcript JSONL files.
  *
  * Extracts token usage data from assistant-type entries in transcript files
  * at ~/.codex/projects/{project-slug}/{session-id}.jsonl.
@@ -8,7 +8,7 @@
  * {
  *   "type": "assistant",
  *   "message": {
- *     "model": "claude-opus-4-6",
+ *     "model": "gpt-5.3-codex",
  *     "usage": {
  *       "input_tokens": 3,
  *       "output_tokens": 9,
@@ -35,38 +35,45 @@ interface ModelPricing {
 	cacheCreationPerMTok: number;
 }
 
-/** Hardcoded pricing for known Claude models. */
+/** Heuristic pricing table for Codex models (USD per 1M tokens). */
 const MODEL_PRICING: Record<string, ModelPricing> = {
-	opus: {
-		inputPerMTok: 15,
-		outputPerMTok: 75,
-		cacheReadPerMTok: 1.5, // 10% of input
-		cacheCreationPerMTok: 3.75, // 25% of input
-	},
-	sonnet: {
+	"gpt-5-codex": {
 		inputPerMTok: 3,
 		outputPerMTok: 15,
 		cacheReadPerMTok: 0.3, // 10% of input
 		cacheCreationPerMTok: 0.75, // 25% of input
 	},
-	haiku: {
+	"gpt-5.2-codex": {
 		inputPerMTok: 0.8,
 		outputPerMTok: 4,
 		cacheReadPerMTok: 0.08, // 10% of input
 		cacheCreationPerMTok: 0.2, // 25% of input
 	},
+	"gpt-5.3-codex": {
+		inputPerMTok: 15,
+		outputPerMTok: 75,
+		cacheReadPerMTok: 1.5, // 10% of input
+		cacheCreationPerMTok: 3.75, // 25% of input
+	},
+	"gpt-5.3-codex-spark": {
+		inputPerMTok: 3,
+		outputPerMTok: 15,
+		cacheReadPerMTok: 0.3, // 10% of input
+		cacheCreationPerMTok: 0.75, // 25% of input
+	},
 };
 
 /**
  * Determine the pricing tier for a given model string.
- * Matches on substring: "opus" -> opus pricing, "sonnet" -> sonnet, "haiku" -> haiku.
+ * Matches on known Codex model IDs.
  * Returns null if unrecognized.
  */
 function getPricingForModel(model: string): ModelPricing | null {
 	const lower = model.toLowerCase();
-	if (lower.includes("opus")) return MODEL_PRICING.opus ?? null;
-	if (lower.includes("sonnet")) return MODEL_PRICING.sonnet ?? null;
-	if (lower.includes("haiku")) return MODEL_PRICING.haiku ?? null;
+	if (lower.includes("gpt-5.3-codex-spark")) return MODEL_PRICING["gpt-5.3-codex-spark"] ?? null;
+	if (lower.includes("gpt-5.3-codex")) return MODEL_PRICING["gpt-5.3-codex"] ?? null;
+	if (lower.includes("gpt-5.2-codex")) return MODEL_PRICING["gpt-5.2-codex"] ?? null;
+	if (lower.includes("gpt-5-codex")) return MODEL_PRICING["gpt-5-codex"] ?? null;
 	return null;
 }
 
@@ -124,7 +131,7 @@ function extractUsageFromEntry(entry: unknown): {
 }
 
 /**
- * Parse a Claude Code transcript JSONL file and aggregate token usage.
+ * Parse a Codex transcript JSONL file and aggregate token usage.
  *
  * Reads the file line by line, extracting usage data from each assistant
  * entry. Returns aggregated totals and the model from the first assistant turn.

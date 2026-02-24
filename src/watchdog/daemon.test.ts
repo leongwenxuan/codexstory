@@ -7,7 +7,7 @@
  * Only tmux operations (isSessionAlive, killSession), triage, and nudge are
  * mocked via dependency injection (_tmux, _triage, _nudge params) because:
  * - Real tmux interferes with developer sessions and is fragile in CI.
- * - Real triage spawns Claude CLI which has cost and latency.
+ * - Real triage spawns Codex CLI which has cost and latency.
  * - Real nudge requires active tmux sessions.
  *
  * Does NOT use mock.module() — it leaks across test files. See mulch record

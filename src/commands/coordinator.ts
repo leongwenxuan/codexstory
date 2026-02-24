@@ -25,6 +25,7 @@ import { resolveBackend, trackerCliName } from "../tracker/factory.ts";
 import type { AgentSession } from "../types.ts";
 import { isProcessRunning } from "../watchdog/health.ts";
 import {
+	capturePaneContent,
 	createSession,
 	isSessionAlive,
 	killSession,
@@ -60,6 +61,7 @@ export interface CoordinatorDeps {
 			timeoutMs?: number,
 			pollIntervalMs?: number,
 		) => Promise<boolean>;
+		capturePaneContent?: (name: string, lines?: number) => Promise<string | null>;
 	};
 	_watchdog?: {
 		start: () => Promise<{ pid: number } | null>;
@@ -274,6 +276,7 @@ export function resolveAttach(args: string[], isTTY: boolean): boolean {
 
 async function startCoordinator(args: string[], deps: CoordinatorDeps = {}): Promise<void> {
 	const tmux = deps._tmux ?? {
+		capturePaneContent,
 		createSession,
 		isSessionAlive,
 		killSession,
@@ -345,7 +348,7 @@ async function startCoordinator(args: string[], deps: CoordinatorDeps = {}): Pro
 			join(projectRoot, config.agents.baseDir),
 		);
 		const manifest = await manifestLoader.load();
-		const { model, env } = resolveModel(config, manifest, "coordinator", "opus");
+		const { model, env } = resolveModel(config, manifest, "coordinator", "gpt-5.3-codex");
 
 		// Spawn tmux session at project root with Codex (interactive mode).
 		const codexCmd = `codexstory hooks run --agent ${COORDINATOR_NAME} --poll-ms 1000 -- --cd "${projectRoot}" --model "${model}"`;
@@ -380,7 +383,21 @@ async function startCoordinator(args: string[], deps: CoordinatorDeps = {}): Pro
 		store.upsert(session);
 
 		// Wait for Codex TUI to render before sending input
-		await tmux.waitForTuiReady(tmuxSession);
+		const ready = await tmux.waitForTuiReady(tmuxSession);
+		if (!ready) {
+			const alive = await tmux.isSessionAlive(tmuxSession);
+			const pane = (await tmux.capturePaneContent?.(tmuxSession, 120)) ?? null;
+			throw new AgentError(
+				[
+					`Coordinator session did not become ready (tmux: ${tmuxSession}, alive: ${alive ? "yes" : "no"}).`,
+					"The Codex process likely exited during startup.",
+					"Check that both `codex` and `codexstory` are available on PATH inside tmux.",
+					pane ? `Recent pane output:\n${pane}` : "",
+				]
+					.filter((line) => line.length > 0)
+					.join("\n"),
+			);
+		}
 		await Bun.sleep(1_000);
 
 		const resolvedBackend = await resolveBackend(config.taskTracker.backend, config.project.root);

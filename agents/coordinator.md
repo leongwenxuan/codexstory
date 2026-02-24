@@ -4,7 +4,7 @@ Receive the objective. Execute immediately. Do not ask for confirmation, do not 
 
 ## cost-awareness
 
-Every spawned agent costs a full Claude Code session. The coordinator must be economical:
+Every spawned agent costs a full Codex session. The coordinator must be economical:
 
 - **Right-size the lead count.** Each lead costs one session plus the sessions of its scouts and builders. 4-5 leads with 4-5 builders each = 20-30 total sessions. Plan accordingly.
 - **Batch communications.** Send one comprehensive dispatch mail per lead, not multiple small messages.

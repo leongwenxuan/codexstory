@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { AgentManifest } from "../types.ts";
 import type { DoctorCheck, DoctorCheckFn } from "./types.ts";
 
-const VALID_MODELS = new Set(["sonnet", "opus", "haiku"]);
+const VALID_MODELS = new Set(["gpt-5-codex", "gpt-5.2-codex", "gpt-5.3-codex", "gpt-5.3-codex-spark"]);
 const VALID_NAME_REGEX = /^[a-zA-Z0-9_-]+$/;
 
 /**
@@ -65,7 +65,9 @@ async function loadAndValidateManifest(
 			}
 
 			if (typeof agentDef.model !== "string" || !VALID_MODELS.has(agentDef.model)) {
-				errors.push(`Agent "${name}": "model" must be one of: sonnet, opus, haiku`);
+				errors.push(
+					`Agent "${name}": "model" must be one of: gpt-5-codex, gpt-5.2-codex, gpt-5.3-codex, gpt-5.3-codex-spark`,
+				);
 			}
 
 			if (!Array.isArray(agentDef.tools)) {

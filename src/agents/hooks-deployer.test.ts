@@ -363,11 +363,11 @@ describe("deployHooks", () => {
 
 	test("preserves non-hooks keys from existing settings.local.json", async () => {
 		const worktreePath = join(tempDir, "worktree");
-		const claudeDir = join(worktreePath, ".codex");
+		const codexDir = join(worktreePath, ".codex");
 		const { mkdir } = await import("node:fs/promises");
-		await mkdir(claudeDir, { recursive: true });
+		await mkdir(codexDir, { recursive: true });
 		await Bun.write(
-			join(claudeDir, "settings.local.json"),
+			join(codexDir, "settings.local.json"),
 			JSON.stringify({
 				permissions: { allow: ["Read"] },
 				env: { FOO: "bar" },
@@ -377,7 +377,7 @@ describe("deployHooks", () => {
 
 		await deployHooks(worktreePath, "new-agent");
 
-		const content = await Bun.file(join(claudeDir, "settings.local.json")).text();
+		const content = await Bun.file(join(codexDir, "settings.local.json")).text();
 		const parsed = JSON.parse(content);
 		expect(content).toContain("new-agent");
 		expect(parsed.hooks).toBeDefined();
@@ -619,11 +619,11 @@ describe("deployHooks", () => {
 
 	test("preserves user hooks alongside codexstory hooks", async () => {
 		const worktreePath = join(tempDir, "merge-user-hooks-wt");
-		const claudeDir = join(worktreePath, ".codex");
+		const codexDir = join(worktreePath, ".codex");
 		const { mkdir } = await import("node:fs/promises");
-		await mkdir(claudeDir, { recursive: true });
+		await mkdir(codexDir, { recursive: true });
 		await Bun.write(
-			join(claudeDir, "settings.local.json"),
+			join(codexDir, "settings.local.json"),
 			JSON.stringify({
 				hooks: {
 					PreToolUse: [
@@ -644,7 +644,7 @@ describe("deployHooks", () => {
 
 		await deployHooks(worktreePath, "merge-agent", "builder");
 
-		const content = await Bun.file(join(claudeDir, "settings.local.json")).text();
+		const content = await Bun.file(join(codexDir, "settings.local.json")).text();
 		const parsed = JSON.parse(content);
 
 		// User hooks should be preserved
@@ -669,11 +669,11 @@ describe("deployHooks", () => {
 
 	test("codexstory hooks appear before user hooks per event type", async () => {
 		const worktreePath = join(tempDir, "order-merge-wt");
-		const claudeDir = join(worktreePath, ".codex");
+		const codexDir = join(worktreePath, ".codex");
 		const { mkdir } = await import("node:fs/promises");
-		await mkdir(claudeDir, { recursive: true });
+		await mkdir(codexDir, { recursive: true });
 		await Bun.write(
-			join(claudeDir, "settings.local.json"),
+			join(codexDir, "settings.local.json"),
 			JSON.stringify({
 				hooks: {
 					PreToolUse: [
@@ -688,7 +688,7 @@ describe("deployHooks", () => {
 
 		await deployHooks(worktreePath, "order-merge-agent", "scout");
 
-		const content = await Bun.file(join(claudeDir, "settings.local.json")).text();
+		const content = await Bun.file(join(codexDir, "settings.local.json")).text();
 		const parsed = JSON.parse(content);
 		const preToolUse = parsed.hooks.PreToolUse;
 
@@ -740,11 +740,11 @@ describe("deployHooks", () => {
 
 	test("re-deployment is idempotent with user hooks present", async () => {
 		const worktreePath = join(tempDir, "idempotent-wt");
-		const claudeDir = join(worktreePath, ".codex");
+		const codexDir = join(worktreePath, ".codex");
 		const { mkdir } = await import("node:fs/promises");
-		await mkdir(claudeDir, { recursive: true });
+		await mkdir(codexDir, { recursive: true });
 		await Bun.write(
-			join(claudeDir, "settings.local.json"),
+			join(codexDir, "settings.local.json"),
 			JSON.stringify({
 				permissions: { allow: ["Read"] },
 				hooks: {
@@ -762,7 +762,7 @@ describe("deployHooks", () => {
 		await deployHooks(worktreePath, "idem-agent", "coordinator");
 		await deployHooks(worktreePath, "idem-agent", "coordinator");
 
-		const content = await Bun.file(join(claudeDir, "settings.local.json")).text();
+		const content = await Bun.file(join(codexDir, "settings.local.json")).text();
 		const parsed = JSON.parse(content);
 
 		// User hook appears exactly once
@@ -777,15 +777,15 @@ describe("deployHooks", () => {
 
 	test("handles malformed existing settings.local.json gracefully", async () => {
 		const worktreePath = join(tempDir, "malformed-wt");
-		const claudeDir = join(worktreePath, ".codex");
+		const codexDir = join(worktreePath, ".codex");
 		const { mkdir } = await import("node:fs/promises");
-		await mkdir(claudeDir, { recursive: true });
-		await Bun.write(join(claudeDir, "settings.local.json"), "not valid json{{{");
+		await mkdir(codexDir, { recursive: true });
+		await Bun.write(join(codexDir, "settings.local.json"), "not valid json{{{");
 
 		// Should not throw — falls back to fresh config
 		await deployHooks(worktreePath, "malformed-agent");
 
-		const content = await Bun.file(join(claudeDir, "settings.local.json")).text();
+		const content = await Bun.file(join(codexDir, "settings.local.json")).text();
 		const parsed = JSON.parse(content);
 		expect(parsed.hooks).toBeDefined();
 		expect(content).toContain("malformed-agent");
@@ -793,11 +793,11 @@ describe("deployHooks", () => {
 
 	test("preserves user hooks in event types not in template", async () => {
 		const worktreePath = join(tempDir, "custom-event-wt");
-		const claudeDir = join(worktreePath, ".codex");
+		const codexDir = join(worktreePath, ".codex");
 		const { mkdir } = await import("node:fs/promises");
-		await mkdir(claudeDir, { recursive: true });
+		await mkdir(codexDir, { recursive: true });
 		await Bun.write(
-			join(claudeDir, "settings.local.json"),
+			join(codexDir, "settings.local.json"),
 			JSON.stringify({
 				hooks: {
 					CustomEvent: [
@@ -812,7 +812,7 @@ describe("deployHooks", () => {
 
 		await deployHooks(worktreePath, "custom-event-agent");
 
-		const content = await Bun.file(join(claudeDir, "settings.local.json")).text();
+		const content = await Bun.file(join(codexDir, "settings.local.json")).text();
 		const parsed = JSON.parse(content);
 
 		// Custom event type should be preserved

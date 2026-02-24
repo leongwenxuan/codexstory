@@ -32,7 +32,12 @@ interface RawManifest {
 	capabilityIndex?: unknown;
 }
 
-const MODEL_ALIASES = new Set(["sonnet", "opus", "haiku"]);
+const MODEL_ALIASES = new Set([
+	"gpt-5-codex",
+	"gpt-5.2-codex",
+	"gpt-5.3-codex",
+	"gpt-5.3-codex-spark",
+]);
 
 /**
  * Validate that a raw parsed object conforms to the AgentDefinition shape.
@@ -279,7 +284,7 @@ export function createManifestLoader(manifestPath: string, agentBaseDir: string)
 	};
 }
 
-const DEFAULT_GATEWAY_ALIAS = "sonnet";
+const DEFAULT_GATEWAY_ALIAS = "gpt-5-codex";
 
 /**
  * Resolve provider-specific environment variables for a gateway provider.

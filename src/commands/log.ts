@@ -144,7 +144,7 @@ function getAgentSession(projectRoot: string, agentName: string): AgentSession |
 
 /**
  * Read one line of JSON from stdin. Returns parsed object or null on failure.
- * Used when --stdin flag is present to receive hook payload from Claude Code.
+ * Used when --stdin flag is present to receive hook payload from Codex.
  *
  * Reads ALL chunks from stdin to handle large payloads that exceed a single buffer.
  */
@@ -176,7 +176,7 @@ async function readStdinJson(): Promise<Record<string, unknown> | null> {
 }
 
 /**
- * Resolve the path to a Claude Code transcript JSONL file.
+ * Resolve the path to a Codex transcript JSONL file.
  * Tries direct construction first, then searches all project directories.
  * Caches the found path for faster subsequent lookups.
  */
@@ -197,11 +197,11 @@ async function resolveTranscriptPath(
 	}
 
 	const homeDir = process.env.HOME ?? "";
-	const claudeProjectsDir = join(homeDir, ".codex", "projects");
+	const codexProjectsDir = join(homeDir, ".codex", "projects");
 
 	// Try direct construction from project root
 	const projectKey = projectRoot.replace(/\//g, "-");
-	const directPath = join(claudeProjectsDir, projectKey, `${sessionId}.jsonl`);
+	const directPath = join(codexProjectsDir, projectKey, `${sessionId}.jsonl`);
 	if (await Bun.file(directPath).exists()) {
 		await Bun.write(cachePath, directPath);
 		return directPath;
@@ -210,16 +210,16 @@ async function resolveTranscriptPath(
 	// Search all project directories for the session file
 	const { readdir } = await import("node:fs/promises");
 	try {
-		const projects = await readdir(claudeProjectsDir);
+		const projects = await readdir(codexProjectsDir);
 		for (const project of projects) {
-			const candidate = join(claudeProjectsDir, project, `${sessionId}.jsonl`);
+			const candidate = join(codexProjectsDir, project, `${sessionId}.jsonl`);
 			if (await Bun.file(candidate).exists()) {
 				await Bun.write(cachePath, candidate);
 				return candidate;
 			}
 		}
 	} catch {
-		// Claude projects dir may not exist
+		// Codex projects dir may not exist
 	}
 
 	return null;
@@ -354,7 +354,7 @@ Arguments:
 Options:
   --agent <name>            Agent name (required)
   --tool-name <name>        Tool name (for tool-start/tool-end events, legacy)
-  --transcript <path>       Path to Claude Code transcript JSONL (for session-end, legacy)
+  --transcript <path>       Path to Codex transcript JSONL (for session-end, legacy)
   --stdin                   Read hook payload JSON from stdin (preferred)
   --help, -h                Show this help`;
 

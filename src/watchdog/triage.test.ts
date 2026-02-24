@@ -1,9 +1,9 @@
 /**
  * Tests for Tier 1 AI-assisted triage.
  * classifyResponse and buildTriagePrompt are pure functions — tested directly.
- * triageAgent uses real filesystem (temp dirs). Claude spawn is expected to
+ * triageAgent uses real filesystem (temp dirs). Codex spawn is expected to
  * fail in test environments, exercising the fallback-to-extend path.
- * spawnClaude is NOT mocked — we rely on it failing naturally in tests.
+ * spawnCodex is NOT mocked — we rely on it failing naturally in tests.
  */
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
@@ -152,7 +152,7 @@ describe("triageAgent", () => {
 
 		// triageAgent will try to spawn claude which should fail or be killed by timeout.
 		// Short timeout ensures the test doesn't hang even if the claude binary
-		// exists on the system (e.g., inside a Claude Code session).
+		// exists on the system (e.g., inside a Codex session).
 		const result = await triageAgent({
 			agentName: "test-agent",
 			root: tempRoot,

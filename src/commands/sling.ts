@@ -34,7 +34,7 @@ import type { TrackerIssue } from "../tracker/factory.ts";
 import { createTrackerClient, resolveBackend, trackerCliName } from "../tracker/factory.ts";
 import type { AgentSession, OverlayConfig } from "../types.ts";
 import { createWorktree } from "../worktree/manager.ts";
-import { createSession, sendKeys, waitForTuiReady } from "../worktree/tmux.ts";
+import { capturePaneContent, createSession, isSessionAlive, sendKeys, waitForTuiReady } from "../worktree/tmux.ts";
 
 /**
  * Calculate how many milliseconds to sleep before spawning a new agent,
@@ -606,7 +606,22 @@ export async function slingCommand(args: string[]): Promise<void> {
 		// 13b. Wait for Codex TUI to render before sending input.
 		// Polling capture-pane is more reliable than a fixed sleep because
 		// TUI init time varies by machine load and model state.
-		await waitForTuiReady(tmuxSessionName);
+		const ready = await waitForTuiReady(tmuxSessionName);
+		if (!ready) {
+			const alive = await isSessionAlive(tmuxSessionName);
+			const pane = await capturePaneContent(tmuxSessionName, 120);
+			throw new AgentError(
+				[
+					`Agent session did not become ready (tmux: ${tmuxSessionName}, alive: ${alive ? "yes" : "no"}).`,
+					"The Codex process likely exited during startup.",
+					"Check that both `codex` and `codexstory` are available on PATH inside tmux.",
+					pane ? `Recent pane output:\n${pane}` : "",
+				]
+					.filter((line) => line.length > 0)
+					.join("\n"),
+				{ agentName: name },
+			);
+		}
 		// Buffer for the input handler to attach after initial render
 		await Bun.sleep(1_000);
 

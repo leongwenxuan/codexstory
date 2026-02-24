@@ -540,15 +540,15 @@ describe("writeOverlay", () => {
 
 	test("overwrites existing CODEXSTORY.md if it already exists", async () => {
 		const worktreePath = join(tempDir, "worktree");
-		const claudeDir = join(worktreePath, ".codex");
+		const codexDir = join(worktreePath, ".codex");
 		const { mkdir } = await import("node:fs/promises");
-		await mkdir(claudeDir, { recursive: true });
-		await Bun.write(join(claudeDir, "CODEXSTORY.md"), "old content");
+		await mkdir(codexDir, { recursive: true });
+		await Bun.write(join(codexDir, "CODEXSTORY.md"), "old content");
 
 		const config = makeConfig({ agentName: "new-agent" });
 		await writeOverlay(worktreePath, config, "/nonexistent-canonical-root");
 
-		const content = await Bun.file(join(claudeDir, "CODEXSTORY.md")).text();
+		const content = await Bun.file(join(codexDir, "CODEXSTORY.md")).text();
 		expect(content).toContain("new-agent");
 		expect(content).not.toContain("old content");
 	});

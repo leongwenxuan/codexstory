@@ -194,7 +194,7 @@ function buildAgentManifest(): AgentManifest {
 	const agents: AgentManifest["agents"] = {
 		scout: {
 			file: "scout.md",
-			model: "haiku",
+			model: "gpt-5-codex",
 			tools: ["Read", "Glob", "Grep", "Bash"],
 			capabilities: ["explore", "research"],
 			canSpawn: false,
@@ -202,7 +202,7 @@ function buildAgentManifest(): AgentManifest {
 		},
 		builder: {
 			file: "builder.md",
-			model: "sonnet",
+			model: "gpt-5-codex",
 			tools: ["Read", "Write", "Edit", "Glob", "Grep", "Bash"],
 			capabilities: ["implement", "refactor", "fix"],
 			canSpawn: false,
@@ -210,7 +210,7 @@ function buildAgentManifest(): AgentManifest {
 		},
 		reviewer: {
 			file: "reviewer.md",
-			model: "sonnet",
+			model: "gpt-5-codex",
 			tools: ["Read", "Glob", "Grep", "Bash"],
 			capabilities: ["review", "validate"],
 			canSpawn: false,
@@ -218,7 +218,7 @@ function buildAgentManifest(): AgentManifest {
 		},
 		lead: {
 			file: "lead.md",
-			model: "opus",
+			model: "gpt-5.3-codex",
 			tools: ["Read", "Write", "Edit", "Glob", "Grep", "Bash", "Task"],
 			capabilities: ["coordinate", "implement", "review"],
 			canSpawn: true,
@@ -226,7 +226,7 @@ function buildAgentManifest(): AgentManifest {
 		},
 		merger: {
 			file: "merger.md",
-			model: "sonnet",
+			model: "gpt-5-codex",
 			tools: ["Read", "Write", "Edit", "Glob", "Grep", "Bash"],
 			capabilities: ["merge", "resolve-conflicts"],
 			canSpawn: false,
@@ -234,7 +234,7 @@ function buildAgentManifest(): AgentManifest {
 		},
 		coordinator: {
 			file: "coordinator.md",
-			model: "opus",
+			model: "gpt-5.3-codex",
 			tools: ["Read", "Glob", "Grep", "Bash"],
 			capabilities: ["coordinate", "dispatch", "escalate"],
 			canSpawn: true,
@@ -242,7 +242,7 @@ function buildAgentManifest(): AgentManifest {
 		},
 		supervisor: {
 			file: "supervisor.md",
-			model: "opus",
+			model: "gpt-5.3-codex",
 			tools: ["Read", "Write", "Edit", "Glob", "Grep", "Bash", "Task"],
 			capabilities: ["coordinate", "supervise"],
 			canSpawn: true,
@@ -250,7 +250,7 @@ function buildAgentManifest(): AgentManifest {
 		},
 		monitor: {
 			file: "monitor.md",
-			model: "sonnet",
+			model: "gpt-5-codex",
 			tools: ["Read", "Glob", "Grep", "Bash"],
 			capabilities: ["monitor", "patrol"],
 			canSpawn: false,
@@ -284,7 +284,7 @@ function buildAgentManifest(): AgentManifest {
 function buildHooksJson(): string {
 	const hooks = {
 		mode: "guidance-only",
-		note: "Codexstory MVP does not install Claude-style lifecycle hooks.",
+		note: "Codexstory MVP does not install Codex-style lifecycle hooks.",
 		recommendedManualSteps: [
 			"Run 'codexstory prime --agent orchestrator' at session start.",
 			"Run 'codexstory mail check --inject --agent orchestrator' before key prompts.",

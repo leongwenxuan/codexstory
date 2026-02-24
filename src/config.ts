@@ -614,7 +614,7 @@ function validateConfig(config: OverstoryConfig): void {
 	}
 
 	// models: validate each value — accepts aliases and provider-prefixed refs
-	const validAliases = ["sonnet", "opus", "haiku"];
+	const validAliases = ["gpt-5-codex", "gpt-5.2-codex", "gpt-5.3-codex", "gpt-5.3-codex-spark"];
 	const toolHeavyRoles = ["builder", "scout"];
 	for (const [role, model] of Object.entries(config.models)) {
 		if (model === undefined) continue;

@@ -1,7 +1,7 @@
 /**
  * CLI command: codexstory hooks install|uninstall|status
  *
- * Codex CLI uses config.toml + notify, not Claude-style lifecycle hook files.
+ * Codex CLI uses config.toml + notify, not Codex-style lifecycle hook files.
  * This command manages a project-local `.codex/config.toml` notify command.
  */
 
@@ -72,7 +72,7 @@ Options:
   --help, -h               Show this help
 
 Notes:
-  Codex does not currently expose Claude-style lifecycle hook events.
+  Codex does not currently expose Codex-style lifecycle hook events.
   codexstory uses official Codex capabilities instead:
   - project notify in .codex/config.toml
   - optional session-log sidecar via \`codexstory hooks run\``;

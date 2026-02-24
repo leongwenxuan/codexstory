@@ -62,6 +62,6 @@ codexstory sling <task-id> --capability builder --name builder-1
 - `costs` and `metrics` are enabled.
 - Hook lifecycle parity remains bounded by Codex capabilities:
   `codexstory hooks` installs project-level Codex `notify` integration via
-  `.codex/config.toml` rather than Claude-style event hooks.
+  `.codex/config.toml` rather than legacy-style event hooks.
   You can also run Codex through a session-log sidecar:
   `codexstory hooks run -- --model gpt-5-codex`

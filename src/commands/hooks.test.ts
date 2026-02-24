@@ -116,16 +116,16 @@ describe("hooks install", () => {
 		);
 
 		// Write existing settings.local.json with non-hooks content
-		const claudeDir = join(tempDir, ".codex");
-		await mkdir(claudeDir, { recursive: true });
+		const codexDir = join(tempDir, ".codex");
+		await mkdir(codexDir, { recursive: true });
 		await Bun.write(
-			join(claudeDir, "settings.local.json"),
+			join(codexDir, "settings.local.json"),
 			`${JSON.stringify({ env: { SOME_VAR: "1" } }, null, "\t")}\n`,
 		);
 
 		await captureStdout(() => hooksCommand(["install"]));
 
-		const content = await Bun.file(join(claudeDir, "settings.local.json")).text();
+		const content = await Bun.file(join(codexDir, "settings.local.json")).text();
 		const parsed = JSON.parse(content) as Record<string, unknown>;
 		expect(parsed.hooks).toBeDefined();
 		expect(parsed.env).toEqual({ SOME_VAR: "1" });
@@ -137,10 +137,10 @@ describe("hooks install", () => {
 			`${JSON.stringify(SAMPLE_HOOKS, null, "\t")}\n`,
 		);
 
-		const claudeDir = join(tempDir, ".codex");
-		await mkdir(claudeDir, { recursive: true });
+		const codexDir = join(tempDir, ".codex");
+		await mkdir(codexDir, { recursive: true });
 		await Bun.write(
-			join(claudeDir, "settings.local.json"),
+			join(codexDir, "settings.local.json"),
 			`${JSON.stringify({ hooks: { old: "hooks" } }, null, "\t")}\n`,
 		);
 
@@ -149,7 +149,7 @@ describe("hooks install", () => {
 		expect(output).toContain("--force");
 
 		// Verify hooks were NOT overwritten
-		const content = await Bun.file(join(claudeDir, "settings.local.json")).text();
+		const content = await Bun.file(join(codexDir, "settings.local.json")).text();
 		expect(content).toContain("old");
 	});
 
@@ -159,8 +159,8 @@ describe("hooks install", () => {
 			`${JSON.stringify(SAMPLE_HOOKS, null, "\t")}\n`,
 		);
 
-		const claudeDir = join(tempDir, ".codex");
-		await mkdir(claudeDir, { recursive: true });
+		const codexDir = join(tempDir, ".codex");
+		await mkdir(codexDir, { recursive: true });
 		const existingSettings = {
 			hooks: {
 				UserInput: [
@@ -172,13 +172,13 @@ describe("hooks install", () => {
 			},
 		};
 		await Bun.write(
-			join(claudeDir, "settings.local.json"),
+			join(codexDir, "settings.local.json"),
 			`${JSON.stringify(existingSettings, null, "\t")}\n`,
 		);
 
 		await captureStdout(() => hooksCommand(["install", "--force"]));
 
-		const content = await Bun.file(join(claudeDir, "settings.local.json")).text();
+		const content = await Bun.file(join(codexDir, "settings.local.json")).text();
 		// Existing user hook is preserved
 		expect(content).toContain("user-hook");
 		// Overstory hooks are added
@@ -204,32 +204,32 @@ describe("hooks install", () => {
 
 describe("hooks uninstall", () => {
 	test("removes hooks-only settings.local.json file entirely", async () => {
-		const claudeDir = join(tempDir, ".codex");
-		await mkdir(claudeDir, { recursive: true });
+		const codexDir = join(tempDir, ".codex");
+		await mkdir(codexDir, { recursive: true });
 		await Bun.write(
-			join(claudeDir, "settings.local.json"),
+			join(codexDir, "settings.local.json"),
 			`${JSON.stringify({ hooks: { some: "hooks" } }, null, "\t")}\n`,
 		);
 
 		const output = await captureStdout(() => hooksCommand(["uninstall"]));
 		expect(output).toContain("Removed");
 
-		const exists = await Bun.file(join(claudeDir, "settings.local.json")).exists();
+		const exists = await Bun.file(join(codexDir, "settings.local.json")).exists();
 		expect(exists).toBe(false);
 	});
 
 	test("preserves non-hooks keys when uninstalling", async () => {
-		const claudeDir = join(tempDir, ".codex");
-		await mkdir(claudeDir, { recursive: true });
+		const codexDir = join(tempDir, ".codex");
+		await mkdir(codexDir, { recursive: true });
 		await Bun.write(
-			join(claudeDir, "settings.local.json"),
+			join(codexDir, "settings.local.json"),
 			`${JSON.stringify({ hooks: { some: "hooks" }, env: { KEY: "val" } }, null, "\t")}\n`,
 		);
 
 		const output = await captureStdout(() => hooksCommand(["uninstall"]));
 		expect(output).toContain("preserved other settings");
 
-		const content = await Bun.file(join(claudeDir, "settings.local.json")).text();
+		const content = await Bun.file(join(codexDir, "settings.local.json")).text();
 		const parsed = JSON.parse(content) as Record<string, unknown>;
 		expect(parsed.hooks).toBeUndefined();
 		expect(parsed.env).toEqual({ KEY: "val" });
@@ -241,10 +241,10 @@ describe("hooks uninstall", () => {
 	});
 
 	test("handles settings.local.json with no hooks key", async () => {
-		const claudeDir = join(tempDir, ".codex");
-		await mkdir(claudeDir, { recursive: true });
+		const codexDir = join(tempDir, ".codex");
+		await mkdir(codexDir, { recursive: true });
 		await Bun.write(
-			join(claudeDir, "settings.local.json"),
+			join(codexDir, "settings.local.json"),
 			`${JSON.stringify({ env: { KEY: "val" } }, null, "\t")}\n`,
 		);
 
@@ -260,8 +260,8 @@ describe("hooks install merge behavior", () => {
 			`${JSON.stringify(SAMPLE_HOOKS, null, "\t")}\n`,
 		);
 
-		const claudeDir = join(tempDir, ".codex");
-		await mkdir(claudeDir, { recursive: true });
+		const codexDir = join(tempDir, ".codex");
+		await mkdir(codexDir, { recursive: true });
 		const existingSettings = {
 			hooks: {
 				PreToolUse: [
@@ -273,13 +273,13 @@ describe("hooks install merge behavior", () => {
 			},
 		};
 		await Bun.write(
-			join(claudeDir, "settings.local.json"),
+			join(codexDir, "settings.local.json"),
 			`${JSON.stringify(existingSettings, null, "\t")}\n`,
 		);
 
 		await captureStdout(() => hooksCommand(["install", "--force"]));
 
-		const content = await Bun.file(join(claudeDir, "settings.local.json")).text();
+		const content = await Bun.file(join(codexDir, "settings.local.json")).text();
 		const parsed = JSON.parse(content) as { hooks: Record<string, unknown[]> };
 		// User's PreToolUse hook preserved
 		expect(content).toContain("user-write-hook");
@@ -296,8 +296,8 @@ describe("hooks install merge behavior", () => {
 			`${JSON.stringify(SAMPLE_HOOKS, null, "\t")}\n`,
 		);
 
-		const claudeDir = join(tempDir, ".codex");
-		await mkdir(claudeDir, { recursive: true });
+		const codexDir = join(tempDir, ".codex");
+		await mkdir(codexDir, { recursive: true });
 
 		// First install
 		await captureStdout(() => hooksCommand(["install"]));
@@ -305,7 +305,7 @@ describe("hooks install merge behavior", () => {
 		// Second install with --force (same hooks again)
 		await captureStdout(() => hooksCommand(["install", "--force"]));
 
-		const content = await Bun.file(join(claudeDir, "settings.local.json")).text();
+		const content = await Bun.file(join(codexDir, "settings.local.json")).text();
 		const parsed = JSON.parse(content) as { hooks: Record<string, unknown[]> };
 
 		// SessionStart should have exactly 1 entry (no duplicate)
@@ -320,8 +320,8 @@ describe("hooks install merge behavior", () => {
 			`${JSON.stringify(SAMPLE_HOOKS, null, "\t")}\n`,
 		);
 
-		const claudeDir = join(tempDir, ".codex");
-		await mkdir(claudeDir, { recursive: true });
+		const codexDir = join(tempDir, ".codex");
+		await mkdir(codexDir, { recursive: true });
 		const existingSettings = {
 			hooks: {
 				Notification: [
@@ -333,13 +333,13 @@ describe("hooks install merge behavior", () => {
 			},
 		};
 		await Bun.write(
-			join(claudeDir, "settings.local.json"),
+			join(codexDir, "settings.local.json"),
 			`${JSON.stringify(existingSettings, null, "\t")}\n`,
 		);
 
 		await captureStdout(() => hooksCommand(["install", "--force"]));
 
-		const content = await Bun.file(join(claudeDir, "settings.local.json")).text();
+		const content = await Bun.file(join(codexDir, "settings.local.json")).text();
 		const parsed = JSON.parse(content) as { hooks: Record<string, unknown[]> };
 		// Custom event type preserved
 		expect(parsed.hooks.Notification).toBeDefined();
@@ -433,10 +433,10 @@ describe("hooks status", () => {
 			`${JSON.stringify(SAMPLE_HOOKS, null, "\t")}\n`,
 		);
 
-		const claudeDir = join(tempDir, ".codex");
-		await mkdir(claudeDir, { recursive: true });
+		const codexDir = join(tempDir, ".codex");
+		await mkdir(codexDir, { recursive: true });
 		await Bun.write(
-			join(claudeDir, "settings.local.json"),
+			join(codexDir, "settings.local.json"),
 			`${JSON.stringify({ hooks: {} }, null, "\t")}\n`,
 		);
 

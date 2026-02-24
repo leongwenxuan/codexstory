@@ -2,8 +2,8 @@
  * Tier 1 AI-assisted failure classification for stalled agents.
  *
  * When an agent is detected as stalled, triage reads recent log entries and
- * uses Claude to classify the situation as recoverable, fatal, or long-running.
- * Falls back to "extend" if Claude is unavailable.
+ * uses Codex to classify the situation as recoverable, fatal, or long-running.
+ * Falls back to "extend" if Codex is unavailable.
  */
 
 import { readdir } from "node:fs/promises";
@@ -11,12 +11,12 @@ import { join } from "node:path";
 import { AgentError } from "../errors.ts";
 
 /**
- * Triage a stalled agent by analyzing its recent log output with Claude.
+ * Triage a stalled agent by analyzing its recent log output with Codex.
  *
  * Steps:
  * 1. Find the most recent session log directory for the agent
  * 2. Read the last 50 lines of session.log
- * 3. Ask Claude to classify the situation
+ * 3. Ask Codex to classify the situation
  * 4. Parse the response to determine action
  *
  * @param options.agentName - Name of the agent to triage
@@ -28,7 +28,7 @@ export async function triageAgent(options: {
 	agentName: string;
 	root: string;
 	lastActivity: string;
-	/** Timeout in ms for the Claude subprocess. Defaults to 30_000 (30s). */
+	/** Timeout in ms for the Codex subprocess. Defaults to 30_000 (30s). */
 	timeoutMs?: number;
 }): Promise<"retry" | "terminate" | "extend"> {
 	const { agentName, root, lastActivity, timeoutMs } = options;
@@ -45,10 +45,10 @@ export async function triageAgent(options: {
 	const prompt = buildTriagePrompt(agentName, lastActivity, logContent);
 
 	try {
-		const response = await spawnClaude(prompt, timeoutMs, root);
+		const response = await spawnCodex(prompt, timeoutMs, root);
 		return classifyResponse(response);
 	} catch {
-		// Claude not available — default to extend (safe fallback)
+		// Codex not available — default to extend (safe fallback)
 		return "extend";
 	}
 }
@@ -96,7 +96,7 @@ async function readRecentLog(logsDir: string): Promise<string> {
 }
 
 /**
- * Build the triage prompt for Claude analysis.
+ * Build the triage prompt for Codex analysis.
  */
 export function buildTriagePrompt(
 	agentName: string,
@@ -119,18 +119,18 @@ export function buildTriagePrompt(
 	].join("\n");
 }
 
-/** Default timeout for Claude subprocess: 30 seconds */
+/** Default timeout for Codex subprocess: 30 seconds */
 const DEFAULT_TRIAGE_TIMEOUT_MS = 30_000;
 
 /**
- * Spawn Claude in non-interactive mode to analyze the log.
+ * Spawn Codex in non-interactive mode to analyze the log.
  *
  * @param prompt - The analysis prompt
  * @param timeoutMs - Timeout in ms for the subprocess (default 30s)
- * @returns Claude's response text
- * @throws Error if claude is not installed, the process fails, or the timeout is reached
+ * @returns Codex's response text
+ * @throws Error if codex is not installed, the process fails, or the timeout is reached
  */
-async function spawnClaude(prompt: string, timeoutMs?: number, cwd = process.cwd()): Promise<string> {
+async function spawnCodex(prompt: string, timeoutMs?: number, cwd = process.cwd()): Promise<string> {
 	const timeout = timeoutMs ?? DEFAULT_TRIAGE_TIMEOUT_MS;
 
 	const proc = Bun.spawn(["codex", "exec", "--cd", cwd, prompt], {
@@ -148,7 +148,7 @@ async function spawnClaude(prompt: string, timeoutMs?: number, cwd = process.cwd
 
 		if (exitCode !== 0) {
 			const stderr = await new Response(proc.stderr).text();
-			throw new AgentError(`Claude triage failed (exit ${exitCode}): ${stderr.trim()}`);
+			throw new AgentError(`Codex triage failed (exit ${exitCode}): ${stderr.trim()}`);
 		}
 
 		return stdout.trim();
@@ -158,9 +158,9 @@ async function spawnClaude(prompt: string, timeoutMs?: number, cwd = process.cwd
 }
 
 /**
- * Classify Claude's response into a triage action.
+ * Classify Codex's response into a triage action.
  *
- * @param response - Claude's raw response text
+ * @param response - Codex's raw response text
  * @returns "retry" | "terminate" | "extend"
  */
 export function classifyResponse(response: string): "retry" | "terminate" | "extend" {

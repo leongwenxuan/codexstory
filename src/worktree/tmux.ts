@@ -469,7 +469,7 @@ export async function waitForTuiReady(
  */
 export async function sendKeys(name: string, keys: string): Promise<void> {
 	// Flatten newlines to spaces — multiline text via tmux send-keys causes
-	// Claude Code's TUI to receive embedded Enter keystrokes which prevent
+	// Codex's TUI to receive embedded Enter keystrokes which prevent
 	// the final "Enter" from triggering message submission (codexstory-y2ob).
 	const flatKeys = keys.replace(/\n/g, " ");
 	const { exitCode, stderr } = await runCommand([
