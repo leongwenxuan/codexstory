@@ -35,6 +35,7 @@ import {
 
 /** Default coordinator agent name. */
 const COORDINATOR_NAME = "coordinator";
+const FORCED_INTERACTIVE_MODEL = "gpt-5.3-codex";
 
 /**
  * Build the tmux session name for the coordinator.
@@ -362,7 +363,7 @@ async function startCoordinator(args: string[], deps: CoordinatorDeps = {}): Pro
 			join(projectRoot, config.agents.baseDir),
 		);
 		const manifest = await manifestLoader.load();
-		const { model, env } = resolveModel(config, manifest, "coordinator", "gpt-5.3-codex");
+		const { env } = resolveModel(config, manifest, "coordinator", FORCED_INTERACTIVE_MODEL);
 		const coordinatorDef = manifest.agents[COORDINATOR_NAME];
 		const systemPromptPath =
 			coordinatorDef === undefined
@@ -378,7 +379,7 @@ async function startCoordinator(args: string[], deps: CoordinatorDeps = {}): Pro
 			systemPrompt && systemPrompt.length > 0
 				? ` --append-system-prompt ${shellQuote(systemPrompt)}`
 				: "";
-		const codexCmd = `codexstory hooks run --agent ${COORDINATOR_NAME} --poll-ms 1000 -- --cd "${projectRoot}" --model ${model}${appendPromptArg}`;
+		const codexCmd = `codexstory hooks run --agent ${COORDINATOR_NAME} --poll-ms 1000 -- --cd "${projectRoot}" --model ${FORCED_INTERACTIVE_MODEL}${appendPromptArg}`;
 		const pid = await tmux.createSession(tmuxSession, projectRoot, codexCmd, {
 			...env,
 			CODEXSTORY_AGENT_NAME: COORDINATOR_NAME,

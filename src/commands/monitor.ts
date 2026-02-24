@@ -26,6 +26,7 @@ import { createSession, isSessionAlive, killSession, sendKeys } from "../worktre
 
 /** Default monitor agent name. */
 const MONITOR_NAME = "monitor";
+const FORCED_INTERACTIVE_MODEL = "gpt-5.3-codex";
 
 /**
  * Build the tmux session name for the monitor.
@@ -136,10 +137,10 @@ async function startMonitor(args: string[]): Promise<void> {
 			join(projectRoot, config.agents.baseDir),
 		);
 		const manifest = await manifestLoader.load();
-		const { model, env } = resolveModel(config, manifest, "monitor", "gpt-5-codex");
+		const { env } = resolveModel(config, manifest, "monitor", FORCED_INTERACTIVE_MODEL);
 
 		// Spawn tmux session at project root with Codex (interactive mode).
-		const codexCmd = `codexstory hooks run --agent ${MONITOR_NAME} --poll-ms 1000 -- --cd "${projectRoot}" --model "${model}"`;
+		const codexCmd = `codexstory hooks run --agent ${MONITOR_NAME} --poll-ms 1000 -- --cd "${projectRoot}" --model "${FORCED_INTERACTIVE_MODEL}"`;
 		const pid = await createSession(tmuxSession, projectRoot, codexCmd, {
 			...env,
 			CODEXSTORY_AGENT_NAME: MONITOR_NAME,

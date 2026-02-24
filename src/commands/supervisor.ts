@@ -30,6 +30,8 @@ import {
 	waitForTuiReady,
 } from "../worktree/tmux.ts";
 
+const FORCED_INTERACTIVE_MODEL = "gpt-5.3-codex";
+
 /**
  * Build the supervisor startup beacon.
  *
@@ -198,11 +200,11 @@ async function startSupervisor(args: string[]): Promise<void> {
 			join(projectRoot, config.agents.baseDir),
 		);
 		const manifest = await manifestLoader.load();
-		const { model, env } = resolveModel(config, manifest, "supervisor", "gpt-5.3-codex");
+		const { env } = resolveModel(config, manifest, "supervisor", FORCED_INTERACTIVE_MODEL);
 
 		// Spawn tmux session at project root with Codex (interactive mode).
 		const tmuxSession = `codexstory-${config.project.name}-supervisor-${flags.name}`;
-		const codexCmd = `codexstory hooks run --agent ${flags.name} --poll-ms 1000 -- --cd "${projectRoot}" --model "${model}"`;
+		const codexCmd = `codexstory hooks run --agent ${flags.name} --poll-ms 1000 -- --cd "${projectRoot}" --model "${FORCED_INTERACTIVE_MODEL}"`;
 		const pid = await createSession(tmuxSession, projectRoot, codexCmd, {
 			...env,
 			CODEXSTORY_AGENT_NAME: flags.name,

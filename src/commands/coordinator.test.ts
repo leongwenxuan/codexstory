@@ -522,7 +522,7 @@ describe("startCoordinator", () => {
 		expect(cmd).toContain("# Coordinator Agent");
 	});
 
-	test("reads model from manifest instead of hardcoding", async () => {
+	test("forces gpt-5.3-codex for interactive coordinator runtime", async () => {
 		// Override the manifest to use sonnet instead of default opus
 		const manifest = {
 			version: "1.0",
@@ -555,8 +555,8 @@ describe("startCoordinator", () => {
 
 		expect(calls.createSession).toHaveLength(1);
 		const cmd = calls.createSession[0]?.command ?? "";
-		expect(cmd).toContain("--model sonnet");
-		expect(cmd).not.toContain("--model opus");
+		expect(cmd).toContain("--model gpt-5.3-codex");
+		expect(cmd).not.toContain("--model sonnet");
 	});
 
 	test("--json outputs JSON with expected fields", async () => {

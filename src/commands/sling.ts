@@ -36,6 +36,8 @@ import type { AgentSession, OverlayConfig } from "../types.ts";
 import { createWorktree } from "../worktree/manager.ts";
 import { capturePaneContent, createSession, isSessionAlive, sendKeys, waitForTuiReady } from "../worktree/tmux.ts";
 
+const FORCED_INTERACTIVE_MODEL = "gpt-5.3-codex";
+
 /**
  * Calculate how many milliseconds to sleep before spawning a new agent,
  * based on the configured stagger delay and when the most recent active
@@ -562,8 +564,8 @@ export async function slingCommand(args: string[]): Promise<void> {
 
 		// 12. Create tmux session running codex in interactive mode
 		const tmuxSessionName = `codexstory-${config.project.name}-${name}`;
-		const { model, env } = resolveModel(config, manifest, capability, agentDef.model);
-		const codexCmd = `codexstory hooks run --agent ${name} --poll-ms 1000 -- --cd "${worktreePath}" --model "${model}"`;
+		const { env } = resolveModel(config, manifest, capability, agentDef.model);
+		const codexCmd = `codexstory hooks run --agent ${name} --poll-ms 1000 -- --cd "${worktreePath}" --model "${FORCED_INTERACTIVE_MODEL}"`;
 		const pid = await createSession(tmuxSessionName, worktreePath, codexCmd, {
 			...env,
 			CODEXSTORY_AGENT_NAME: name,
