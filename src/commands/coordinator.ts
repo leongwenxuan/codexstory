@@ -44,6 +44,10 @@ function coordinatorTmuxSession(projectName: string): string {
 	return `codexstory-${projectName}-${COORDINATOR_NAME}`;
 }
 
+function shellQuote(value: string): string {
+	return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
 /** Dependency injection for testing. Uses real implementations when omitted. */
 export interface CoordinatorDeps {
 	_tmux?: {
@@ -247,7 +251,7 @@ export function buildCoordinatorBeacon(cliName = "bd"): string {
 		`[CODEXSTORY] ${COORDINATOR_NAME} (coordinator) ${timestamp}`,
 		"Depth: 0 | Parent: none | Role: persistent orchestrator",
 		"HIERARCHY: You ONLY spawn leads (codexstory sling --capability lead). Leads spawn scouts, builders, reviewers. NEVER spawn non-lead agents directly.",
-		"DELEGATION: For any exploration/scouting, spawn a lead who will spawn scouts. Do NOT explore the codebase yourself beyond initial planning.",
+		"DELEGATION: For any exploration/scouting, spawn a lead who will spawn scouts. Do NOT explore the codebase yourself beyond initial planning. You are orchestration-only; never implement code directly.",
 		`Startup: run mulch prime, check mail (codexstory mail check --agent ${COORDINATOR_NAME}), check ${cliName} ready, check codexstory group status, then begin work`,
 	];
 	return parts.join(" — ");
@@ -349,9 +353,20 @@ async function startCoordinator(args: string[], deps: CoordinatorDeps = {}): Pro
 		);
 		const manifest = await manifestLoader.load();
 		const { model, env } = resolveModel(config, manifest, "coordinator", "gpt-5.3-codex");
+		const coordinatorDef = manifest.agents[COORDINATOR_NAME];
+		const systemPromptPath =
+			coordinatorDef === undefined
+				? null
+				: join(projectRoot, config.agents.baseDir, coordinatorDef.file);
+		const systemPrompt =
+			systemPromptPath === null ? null : (await Bun.file(systemPromptPath).text()).trim();
 
 		// Spawn tmux session at project root with Codex (interactive mode).
-		const codexCmd = `codexstory hooks run --agent ${COORDINATOR_NAME} --poll-ms 1000 -- --cd "${projectRoot}" --model "${model}"`;
+		const appendPromptArg =
+			systemPrompt && systemPrompt.length > 0
+				? ` --append-system-prompt ${shellQuote(systemPrompt)}`
+				: "";
+		const codexCmd = `codexstory hooks run --agent ${COORDINATOR_NAME} --poll-ms 1000 -- --cd "${projectRoot}" --model ${model}${appendPromptArg}`;
 		const pid = await tmux.createSession(tmuxSession, projectRoot, codexCmd, {
 			...env,
 			CODEXSTORY_AGENT_NAME: COORDINATOR_NAME,

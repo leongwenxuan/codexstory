@@ -509,15 +509,6 @@ export async function deployHooks(
 	agentName: string,
 	capability = "builder",
 ): Promise<void> {
-	// Codex CLI does not currently expose Codex-style lifecycle hooks
-	// (SessionStart/UserPromptSubmit/PreToolUse/PostToolUse/Stop) that this
-	// deployer was built around. For codexstory MVP we intentionally make hook
-	// deployment a no-op and rely on `codexstory hooks status` guidance.
-	void worktreePath;
-	void agentName;
-	void capability;
-	return;
-
 	const templatePath = getTemplatePath();
 	const file = Bun.file(templatePath);
 	const exists = await file.exists();
