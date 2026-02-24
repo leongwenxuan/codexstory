@@ -1,6 +1,38 @@
-# codexstory (MVP)
+# codexstory
 
-`codexstory` is a Codex-CLI runtime fork of Overstory orchestration.
+`codexstory` is the Codex-CLI runtime fork of Overstory orchestration.
+
+## Install
+
+From this repository root:
+
+```bash
+bun install
+cd codexstory
+bun link
+```
+
+If you do not want to link globally, run commands with:
+
+```bash
+bun /Users/leongwenxuan/Desktop/overstory/codexstory/src/index.ts <command> ...
+```
+
+## Start
+
+Inside your target project:
+
+```bash
+codexstory init
+codexstory hooks install
+codexstory coordinator start
+```
+
+Or spawn a worker directly:
+
+```bash
+codexstory sling <task-id> --capability builder --name builder-1
+```
 
 ## MVP Commands
 
