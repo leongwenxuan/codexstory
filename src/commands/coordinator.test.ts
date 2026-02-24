@@ -434,11 +434,18 @@ describe("startCoordinator", () => {
 	test("deploys hooks to project root .codex/settings.local.json", async () => {
 		const { deps } = makeDeps();
 		const originalSleep = Bun.sleep;
+		const originalRootHooks = process.env.CODEXSTORY_ENABLE_ROOT_HOOKS;
 		Bun.sleep = (() => Promise.resolve()) as typeof Bun.sleep;
+		process.env.CODEXSTORY_ENABLE_ROOT_HOOKS = "1";
 
 		try {
 			await captureStdout(() => coordinatorCommand(["start", "--no-attach"], deps));
 		} finally {
+			if (originalRootHooks === undefined) {
+				delete process.env.CODEXSTORY_ENABLE_ROOT_HOOKS;
+			} else {
+				process.env.CODEXSTORY_ENABLE_ROOT_HOOKS = originalRootHooks;
+			}
 			Bun.sleep = originalSleep;
 		}
 
@@ -464,11 +471,18 @@ describe("startCoordinator", () => {
 	test("hooks use coordinator agent name for event logging", async () => {
 		const { deps } = makeDeps();
 		const originalSleep = Bun.sleep;
+		const originalRootHooks = process.env.CODEXSTORY_ENABLE_ROOT_HOOKS;
 		Bun.sleep = (() => Promise.resolve()) as typeof Bun.sleep;
+		process.env.CODEXSTORY_ENABLE_ROOT_HOOKS = "1";
 
 		try {
 			await captureStdout(() => coordinatorCommand(["start", "--no-attach"], deps));
 		} finally {
+			if (originalRootHooks === undefined) {
+				delete process.env.CODEXSTORY_ENABLE_ROOT_HOOKS;
+			} else {
+				process.env.CODEXSTORY_ENABLE_ROOT_HOOKS = originalRootHooks;
+			}
 			Bun.sleep = originalSleep;
 		}
 
@@ -482,11 +496,18 @@ describe("startCoordinator", () => {
 	test("hooks include ENV_GUARD to avoid affecting user's Codex session", async () => {
 		const { deps } = makeDeps();
 		const originalSleep = Bun.sleep;
+		const originalRootHooks = process.env.CODEXSTORY_ENABLE_ROOT_HOOKS;
 		Bun.sleep = (() => Promise.resolve()) as typeof Bun.sleep;
+		process.env.CODEXSTORY_ENABLE_ROOT_HOOKS = "1";
 
 		try {
 			await captureStdout(() => coordinatorCommand(["start", "--no-attach"], deps));
 		} finally {
+			if (originalRootHooks === undefined) {
+				delete process.env.CODEXSTORY_ENABLE_ROOT_HOOKS;
+			} else {
+				process.env.CODEXSTORY_ENABLE_ROOT_HOOKS = originalRootHooks;
+			}
 			Bun.sleep = originalSleep;
 		}
 
@@ -497,7 +518,7 @@ describe("startCoordinator", () => {
 		expect(content).toContain("CODEXSTORY_AGENT_NAME");
 	});
 
-	test("injects agent definition via --append-system-prompt when agent-defs/coordinator.md exists", async () => {
+	test("does not inline coordinator definition into startup command", async () => {
 		// Deploy a coordinator agent definition
 		const agentDefsDir = join(overstoryDir, "agent-defs");
 		await mkdir(agentDefsDir, { recursive: true });
@@ -518,8 +539,8 @@ describe("startCoordinator", () => {
 
 		expect(calls.createSession).toHaveLength(1);
 		const cmd = calls.createSession[0]?.command ?? "";
-		expect(cmd).toContain("--append-system-prompt");
-		expect(cmd).toContain("# Coordinator Agent");
+		expect(cmd).not.toContain("--append-system-prompt");
+		expect(cmd).not.toContain("# Coordinator Agent");
 	});
 
 	test("forces gpt-5.3-codex for interactive coordinator runtime", async () => {

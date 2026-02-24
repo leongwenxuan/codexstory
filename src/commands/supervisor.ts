@@ -176,8 +176,10 @@ async function startSupervisor(args: string[]): Promise<void> {
 			store.updateState(flags.name, "completed");
 		}
 
-		// Deploy supervisor-specific hooks to the project root's .codex/ directory.
-		await deployHooks(projectRoot, flags.name, "supervisor");
+		// Project-root hook deployment is opt-in for Codex runtime stability.
+		if (process.env.CODEXSTORY_ENABLE_ROOT_HOOKS === "1") {
+			await deployHooks(projectRoot, flags.name, "supervisor");
+		}
 
 		// Create supervisor identity if first run
 		const identityBaseDir = join(projectRoot, ".codexstory", "agents");

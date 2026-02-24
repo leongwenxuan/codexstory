@@ -111,10 +111,10 @@ async function startMonitor(args: string[]): Promise<void> {
 			store.updateState(MONITOR_NAME, "completed");
 		}
 
-		// Deploy monitor-specific hooks to the project root's .codex/ directory.
-		// The monitor gets the same structural enforcement as other non-implementation
-		// agents (Write/Edit/NotebookEdit blocked, dangerous bash commands blocked).
-		await deployHooks(projectRoot, MONITOR_NAME, "monitor");
+		// Project-root hook deployment is opt-in for Codex runtime stability.
+		if (process.env.CODEXSTORY_ENABLE_ROOT_HOOKS === "1") {
+			await deployHooks(projectRoot, MONITOR_NAME, "monitor");
+		}
 
 		// Create monitor identity if first run
 		const identityBaseDir = join(projectRoot, ".codexstory", "agents");

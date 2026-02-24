@@ -45,20 +45,6 @@ function coordinatorTmuxSession(projectName: string): string {
 	return `codexstory-${projectName}-${COORDINATOR_NAME}`;
 }
 
-function shellQuote(value: string): string {
-	return `'${value.replaceAll("'", "'\\''")}'`;
-}
-
-const MAX_INLINE_SYSTEM_PROMPT_CHARS = 1200;
-
-function compactSystemPrompt(raw: string): string {
-	const normalized = raw.replace(/\s+/g, " ").trim();
-	if (normalized.length <= MAX_INLINE_SYSTEM_PROMPT_CHARS) {
-		return normalized;
-	}
-	return `${normalized.slice(0, MAX_INLINE_SYSTEM_PROMPT_CHARS)}...`;
-}
-
 /** Dependency injection for testing. Uses real implementations when omitted. */
 export interface CoordinatorDeps {
 	_tmux?: {
@@ -334,13 +320,10 @@ async function startCoordinator(args: string[], deps: CoordinatorDeps = {}): Pro
 			store.updateState(COORDINATOR_NAME, "completed");
 		}
 
-		// Deploy hooks to the project root so the coordinator gets event logging,
-		// mail check --inject, and activity tracking via the standard hook pipeline.
-		// The ENV_GUARD prefix on all hooks (both template and generated guards)
-		// ensures they only activate when CODEXSTORY_AGENT_NAME is set (i.e. for
-		// the coordinator's tmux session), so the user's own Codex session
-		// at the project root is unaffected.
-		await deployHooks(projectRoot, COORDINATOR_NAME, "coordinator");
+		// Project-root hook deployment is opt-in for Codex runtime stability.
+		if (process.env.CODEXSTORY_ENABLE_ROOT_HOOKS === "1") {
+			await deployHooks(projectRoot, COORDINATOR_NAME, "coordinator");
+		}
 
 		// Create coordinator identity if first run
 		const identityBaseDir = join(projectRoot, ".codexstory", "agents");
@@ -364,22 +347,9 @@ async function startCoordinator(args: string[], deps: CoordinatorDeps = {}): Pro
 		);
 		const manifest = await manifestLoader.load();
 		const { env } = resolveModel(config, manifest, "coordinator", FORCED_INTERACTIVE_MODEL);
-		const coordinatorDef = manifest.agents[COORDINATOR_NAME];
-		const systemPromptPath =
-			coordinatorDef === undefined
-				? null
-				: join(projectRoot, config.agents.baseDir, coordinatorDef.file);
-		const systemPrompt =
-			systemPromptPath === null
-				? null
-				: compactSystemPrompt((await Bun.file(systemPromptPath).text()).trim());
 
 		// Spawn tmux session at project root with Codex (interactive mode).
-		const appendPromptArg =
-			systemPrompt && systemPrompt.length > 0
-				? ` --append-system-prompt ${shellQuote(systemPrompt)}`
-				: "";
-		const codexCmd = `codexstory hooks run --agent ${COORDINATOR_NAME} --poll-ms 1000 -- --cd "${projectRoot}" --model ${FORCED_INTERACTIVE_MODEL}${appendPromptArg}`;
+		const codexCmd = `codexstory hooks run --agent ${COORDINATOR_NAME} --poll-ms 1000 -- --cd "${projectRoot}" --model ${FORCED_INTERACTIVE_MODEL}`;
 		const pid = await tmux.createSession(tmuxSession, projectRoot, codexCmd, {
 			...env,
 			CODEXSTORY_AGENT_NAME: COORDINATOR_NAME,
