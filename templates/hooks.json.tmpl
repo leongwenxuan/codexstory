@@ -1,0 +1,105 @@
+{
+	"hooks": {
+		"SessionStart": [
+			{
+				"matcher": "",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "[ -z \"$CODEXSTORY_AGENT_NAME\" ] && exit 0; codexstory prime --agent {{AGENT_NAME}}"
+					}
+				]
+			}
+		],
+		"UserPromptSubmit": [
+			{
+				"matcher": "",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "[ -z \"$CODEXSTORY_AGENT_NAME\" ] && exit 0; codexstory mail check --inject --agent {{AGENT_NAME}}"
+					}
+				]
+			}
+		],
+		"PreToolUse": [
+			{
+				"matcher": "",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "[ -z \"$CODEXSTORY_AGENT_NAME\" ] && exit 0; codexstory log tool-start --agent {{AGENT_NAME}} --stdin"
+					}
+				]
+			},
+			{
+				"matcher": "Bash",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "read -r INPUT; CMD=$(echo \"$INPUT\" | sed 's/.*\"command\": *\"\\([^\"]*\\)\".*/\\1/'); if echo \"$CMD\" | grep -qE '\\bgit\\s+push\\b'; then echo '{\"decision\":\"block\",\"reason\":\"git push is blocked — use codexstory merge to integrate changes, push manually when ready\"}'; exit 0; fi;"
+					}
+				]
+			}
+		],
+		"PostToolUse": [
+			{
+				"matcher": "",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "[ -z \"$CODEXSTORY_AGENT_NAME\" ] && exit 0; codexstory log tool-end --agent {{AGENT_NAME}} --stdin"
+					},
+					{
+						"type": "command",
+						"command": "[ -z \"$CODEXSTORY_AGENT_NAME\" ] && exit 0; codexstory mail check --inject --agent {{AGENT_NAME}} --debounce 500"
+					}
+				]
+			},
+			{
+				"matcher": "",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "[ -z \"$CODEXSTORY_AGENT_NAME\" ] && exit 0; codexstory mail check --inject --agent {{AGENT_NAME}} --debounce 30000"
+					}
+				]
+			},
+			{
+				"matcher": "Bash",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "[ -z \"$CODEXSTORY_AGENT_NAME\" ] && exit 0; read -r INPUT; if echo \"$INPUT\" | grep -qE '\\bgit\\s+commit\\b'; then mulch diff HEAD~1 >/dev/null 2>&1 || true; fi; exit 0;"
+					}
+				]
+			}
+		],
+		"Stop": [
+			{
+				"matcher": "",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "[ -z \"$CODEXSTORY_AGENT_NAME\" ] && exit 0; codexstory log session-end --agent {{AGENT_NAME}} --stdin"
+					},
+					{
+						"type": "command",
+						"command": "[ -z \"$CODEXSTORY_AGENT_NAME\" ] && exit 0; mulch learn"
+					}
+				]
+			}
+		],
+		"PreCompact": [
+			{
+				"matcher": "",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "[ -z \"$CODEXSTORY_AGENT_NAME\" ] && exit 0; codexstory prime --agent {{AGENT_NAME}} --compact"
+					}
+				]
+			}
+		]
+	}
+}

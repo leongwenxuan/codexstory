@@ -1,0 +1,31 @@
+{
+  "name": "@os-eco/codexstory-cli",
+  "version": "0.1.0",
+  "description": "Multi-agent orchestration for Codex CLI — spawn worker agents in git worktrees via tmux, coordinate through SQLite mail, merge with tiered conflict resolution",
+  "author": "Jaymin West",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "codexstory": "./src/index.ts"
+  },
+  "main": "src/index.ts",
+  "files": ["src", "agents", "templates"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "bun": ">=1.0"
+  },
+  "scripts": {
+    "test": "bun test",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.9.0",
+    "@biomejs/biome": "^2.3.15"
+  }
+}
