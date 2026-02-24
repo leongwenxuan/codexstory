@@ -348,7 +348,7 @@ async function startCoordinator(args: string[], deps: CoordinatorDeps = {}): Pro
 		const { model, env } = resolveModel(config, manifest, "coordinator", "opus");
 
 		// Spawn tmux session at project root with Codex (interactive mode).
-		const codexCmd = `codex --cd ${projectRoot} --model ${model}`;
+		const codexCmd = `codexstory hooks run --agent ${COORDINATOR_NAME} --poll-ms 1000 -- --cd "${projectRoot}" --model "${model}"`;
 		const pid = await tmux.createSession(tmuxSession, projectRoot, codexCmd, {
 			...env,
 			CODEXSTORY_AGENT_NAME: COORDINATOR_NAME,

@@ -139,7 +139,7 @@ async function startMonitor(args: string[]): Promise<void> {
 		const { model, env } = resolveModel(config, manifest, "monitor", "sonnet");
 
 		// Spawn tmux session at project root with Codex (interactive mode).
-		const codexCmd = `codex --cd ${projectRoot} --model ${model}`;
+		const codexCmd = `codexstory hooks run --agent ${MONITOR_NAME} --poll-ms 1000 -- --cd "${projectRoot}" --model "${model}"`;
 		const pid = await createSession(tmuxSession, projectRoot, codexCmd, {
 			...env,
 			CODEXSTORY_AGENT_NAME: MONITOR_NAME,

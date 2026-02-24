@@ -54,6 +54,8 @@ export function mergeHooksByEventType(
 }
 
 const NOTIFY_CMD = 'notify = ["bash", "-lc", "codexstory mail check --inject --agent orchestrator || true"]';
+const GIT_HOOK_MARKER = "# codexstory-managed-pre-push";
+const GIT_HOOK_BACKUP = "pre-push.codexstory.bak";
 
 const HOOKS_HELP = `codexstory hooks — Manage Codex notify integration
 
@@ -104,11 +106,15 @@ async function installHooks(args: string[]): Promise<void> {
 	const withoutNotify = lines.filter((line) => !line.trim().startsWith("notify ="));
 	const finalLines = [...withoutNotify.filter((line) => line.length > 0), NOTIFY_CMD, ""];
 	await Bun.write(targetPath, `${finalLines.join("\n")}\n`);
+	await installGitGuardrailHook(config.project.root);
 
 	if (json) {
-		process.stdout.write(`${JSON.stringify({ installed: true, path: targetPath, changed: true })}\n`);
+		process.stdout.write(
+			`${JSON.stringify({ installed: true, path: targetPath, changed: true, gitHookInstalled: true })}\n`,
+		);
 	} else {
 		process.stdout.write(`✓ Installed Codex notify integration to ${targetPath}\n`);
+		process.stdout.write("✓ Installed .git/hooks/pre-push guardrail for codexstory agent sessions\n");
 	}
 }
 
@@ -131,15 +137,21 @@ async function uninstallHooks(args: string[]): Promise<void> {
 	const filtered = lines.filter((line) => !isCodexstoryNotifyLine(line));
 	const changed = filtered.length !== lines.length;
 	await Bun.write(targetPath, `${filtered.join("\n").replace(/\n+$/, "\n")}`);
+	const gitHookRemoved = await uninstallGitGuardrailHook(config.project.root);
 
 	if (json) {
-		process.stdout.write(`${JSON.stringify({ installed: false, path: targetPath, changed })}\n`);
+		process.stdout.write(
+			`${JSON.stringify({ installed: false, path: targetPath, changed, gitHookRemoved })}\n`,
+		);
 	} else {
 		process.stdout.write(
 			changed
 				? `✓ Removed Codex notify integration from ${targetPath}\n`
 				: `No codexstory notify integration found in ${targetPath}\n`,
 		);
+		if (gitHookRemoved) {
+			process.stdout.write("✓ Removed codexstory .git/hooks/pre-push guardrail\n");
+		}
 	}
 }
 
@@ -153,12 +165,14 @@ async function statusHooks(args: string[]): Promise<void> {
 	const projectExists = await Bun.file(projectPath).exists();
 	const projectContent = projectExists ? await Bun.file(projectPath).text() : "";
 	const installed = projectContent.split(/\r?\n/).some((line) => isCodexstoryNotifyLine(line));
+	const gitHookInstalled = await isGitGuardrailHookInstalled(config.project.root);
 
 	if (json) {
 		process.stdout.write(
 			`${JSON.stringify({
 				installed,
 				mode: "notify",
+				gitHookInstalled,
 				globalConfigPath: globalPath,
 				globalConfigExists: globalExists,
 				projectConfigPath: projectPath,
@@ -171,6 +185,7 @@ async function statusHooks(args: string[]): Promise<void> {
 	process.stdout.write(`Codex global config: ${globalPath} (${globalExists ? "present" : "missing"})\n`);
 	process.stdout.write(`Codex project config: ${projectPath} (${projectExists ? "present" : "missing"})\n`);
 	process.stdout.write(`codexstory notify installed: ${installed ? "yes" : "no"}\n`);
+	process.stdout.write(`git pre-push guardrail installed: ${gitHookInstalled ? "yes" : "no"}\n`);
 	if (!installed) {
 		process.stdout.write("Run `codexstory hooks install` to add project-level notify integration.\n");
 	}
@@ -196,7 +211,7 @@ async function runHooks(args: string[]): Promise<void> {
 	}
 
 	const sep = args.indexOf("--");
-	const forwarded = sep === -1 ? args.filter((a) => !a.startsWith("--")) : args.slice(sep + 1);
+	const forwarded = sep === -1 ? [] : args.slice(sep + 1);
 	const codexArgs = [...forwarded];
 	if (!codexArgs.some((a) => a === "--cd" || a === "-C")) {
 		codexArgs.push("--cd", projectRoot);
@@ -238,7 +253,17 @@ async function runHooks(args: string[]): Promise<void> {
 			// Trigger a lightweight background mail check whenever new session events arrive.
 			// This approximates hook-driven mailbox polling when Codex lifecycle hooks are unavailable.
 			const checker = Bun.spawn(
-				[process.argv[0] ?? "bun", cliEntry, "mail", "check", "--agent", agent, "--json"],
+				[
+					process.argv[0] ?? "bun",
+					cliEntry,
+					"mail",
+					"check",
+					"--inject",
+					"--agent",
+					agent,
+					"--debounce",
+					"1000",
+				],
 				{
 					cwd: projectRoot,
 					stdout: "ignore",
@@ -259,6 +284,59 @@ async function runHooks(args: string[]): Promise<void> {
 	} finally {
 		clearInterval(pollTimer);
 	}
+}
+
+async function installGitGuardrailHook(projectRoot: string): Promise<void> {
+	const hookPath = join(projectRoot, ".git", "hooks", "pre-push");
+	const backupPath = join(projectRoot, ".git", "hooks", GIT_HOOK_BACKUP);
+	const hookFile = Bun.file(hookPath);
+	if (await hookFile.exists()) {
+		const existing = await hookFile.text();
+		if (!existing.includes(GIT_HOOK_MARKER)) {
+			await Bun.write(backupPath, existing);
+		}
+	}
+	const content = `#!/usr/bin/env sh
+${GIT_HOOK_MARKER}
+if [ -n "$CODEXSTORY_AGENT_NAME" ]; then
+  echo "codexstory guardrail: git push blocked for agent session $CODEXSTORY_AGENT_NAME"
+  exit 1
+fi
+exit 0
+`;
+	await Bun.write(hookPath, content);
+	const chmod = Bun.spawn(["chmod", "+x", hookPath], { stdout: "ignore", stderr: "ignore" });
+	await chmod.exited;
+}
+
+async function uninstallGitGuardrailHook(projectRoot: string): Promise<boolean> {
+	const hookPath = join(projectRoot, ".git", "hooks", "pre-push");
+	const backupPath = join(projectRoot, ".git", "hooks", GIT_HOOK_BACKUP);
+	const file = Bun.file(hookPath);
+	if (!(await file.exists())) return false;
+	const text = await file.text();
+	if (!text.includes(GIT_HOOK_MARKER)) return false;
+	const backup = Bun.file(backupPath);
+	if (await backup.exists()) {
+		await Bun.write(hookPath, await backup.text());
+	} else {
+		await Bun.write(hookPath, "#!/usr/bin/env sh\nexit 0\n");
+	}
+	const chmod = Bun.spawn(["chmod", "+x", hookPath], { stdout: "ignore", stderr: "ignore" });
+	await chmod.exited;
+	if (await backup.exists()) {
+		const { unlink } = await import("node:fs/promises");
+		await unlink(backupPath).catch(() => {});
+	}
+	return true;
+}
+
+async function isGitGuardrailHookInstalled(projectRoot: string): Promise<boolean> {
+	const hookPath = join(projectRoot, ".git", "hooks", "pre-push");
+	const file = Bun.file(hookPath);
+	if (!(await file.exists())) return false;
+	const text = await file.text();
+	return text.includes(GIT_HOOK_MARKER);
 }
 
 export async function hooksCommand(args: string[]): Promise<void> {

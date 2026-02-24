@@ -563,7 +563,7 @@ export async function slingCommand(args: string[]): Promise<void> {
 		// 12. Create tmux session running codex in interactive mode
 		const tmuxSessionName = `codexstory-${config.project.name}-${name}`;
 		const { model, env } = resolveModel(config, manifest, capability, agentDef.model);
-		const codexCmd = `codex --cd ${worktreePath} --model ${model}`;
+		const codexCmd = `codexstory hooks run --agent ${name} --poll-ms 1000 -- --cd "${worktreePath}" --model "${model}"`;
 		const pid = await createSession(tmuxSessionName, worktreePath, codexCmd, {
 			...env,
 			CODEXSTORY_AGENT_NAME: name,
