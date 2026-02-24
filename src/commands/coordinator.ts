@@ -48,6 +48,16 @@ function shellQuote(value: string): string {
 	return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
+const MAX_INLINE_SYSTEM_PROMPT_CHARS = 1200;
+
+function compactSystemPrompt(raw: string): string {
+	const normalized = raw.replace(/\s+/g, " ").trim();
+	if (normalized.length <= MAX_INLINE_SYSTEM_PROMPT_CHARS) {
+		return normalized;
+	}
+	return `${normalized.slice(0, MAX_INLINE_SYSTEM_PROMPT_CHARS)}...`;
+}
+
 /** Dependency injection for testing. Uses real implementations when omitted. */
 export interface CoordinatorDeps {
 	_tmux?: {
@@ -359,7 +369,9 @@ async function startCoordinator(args: string[], deps: CoordinatorDeps = {}): Pro
 				? null
 				: join(projectRoot, config.agents.baseDir, coordinatorDef.file);
 		const systemPrompt =
-			systemPromptPath === null ? null : (await Bun.file(systemPromptPath).text()).trim();
+			systemPromptPath === null
+				? null
+				: compactSystemPrompt((await Bun.file(systemPromptPath).text()).trim());
 
 		// Spawn tmux session at project root with Codex (interactive mode).
 		const appendPromptArg =
