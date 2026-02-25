@@ -75,7 +75,11 @@ function buildFilterClauses(
 	opts: EventQueryOptions | undefined,
 	existingConditions: string[] = [],
 	existingParams: Record<string, string | number> = {},
-): { whereClause: string; params: Record<string, string | number>; limitClause: string } {
+): {
+	whereClause: string;
+	params: Record<string, string | number>;
+	limitClause: string;
+} {
 	const conditions = [...existingConditions];
 	const params = { ...existingParams };
 
@@ -92,10 +96,31 @@ function buildFilterClauses(
 		params.$level = opts.level;
 	}
 
-	const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+	const whereClause =
+		conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 	const limitClause = opts?.limit !== undefined ? `LIMIT ${opts.limit}` : "";
 
 	return { whereClause, params, limitClause };
+}
+
+/**
+ * Build a query that returns rows in ascending chronological order.
+ * When a limit is provided, it returns the most recent N rows (then re-sorts ascending).
+ */
+function buildChronologicalQuery(
+	baseSelect: string,
+	whereClause: string,
+	limitClause: string,
+): string {
+	if (limitClause) {
+		return `
+			SELECT * FROM (
+				${baseSelect} ${whereClause} ORDER BY created_at DESC ${limitClause}
+			)
+			ORDER BY created_at ASC
+		`;
+	}
+	return `${baseSelect} ${whereClause} ORDER BY created_at ASC`;
 }
 
 /**
@@ -153,7 +178,10 @@ export function createEventStore(dbPath: string): EventStore {
 		LIMIT 1
 	`);
 
-	const updateDurationStmt = db.prepare<void, { $id: number; $duration_ms: number }>(`
+	const updateDurationStmt = db.prepare<
+		void,
+		{ $id: number; $duration_ms: number }
+	>(`
 		UPDATE events SET tool_duration_ms = $duration_ms WHERE id = $id
 	`);
 
@@ -226,8 +254,14 @@ export function createEventStore(dbPath: string): EventStore {
 					["agent_name = $agent_name"],
 					{ $agent_name: agentName },
 				);
-				const query = `SELECT * FROM events ${whereClause} ORDER BY created_at ASC ${limitClause}`;
-				const rows = db.prepare<EventRow, Record<string, string | number>>(query).all(params);
+				const query = buildChronologicalQuery(
+					"SELECT * FROM events",
+					whereClause,
+					limitClause,
+				);
+				const rows = db
+					.prepare<EventRow, Record<string, string | number>>(query)
+					.all(params);
 				return rows.map(rowToEvent);
 			}
 			const rows = byAgentStmt.all({ $agent_name: agentName });
@@ -247,8 +281,14 @@ export function createEventStore(dbPath: string): EventStore {
 					["run_id = $run_id"],
 					{ $run_id: runId },
 				);
-				const query = `SELECT * FROM events ${whereClause} ORDER BY created_at ASC ${limitClause}`;
-				const rows = db.prepare<EventRow, Record<string, string | number>>(query).all(params);
+				const query = buildChronologicalQuery(
+					"SELECT * FROM events",
+					whereClause,
+					limitClause,
+				);
+				const rows = db
+					.prepare<EventRow, Record<string, string | number>>(query)
+					.all(params);
 				return rows.map(rowToEvent);
 			}
 			const rows = byRunStmt.all({ $run_id: runId });
@@ -256,21 +296,34 @@ export function createEventStore(dbPath: string): EventStore {
 		},
 
 		getErrors(opts?: EventQueryOptions): StoredEvent[] {
-			const { whereClause, params, limitClause } = buildFilterClauses(opts, ["level = 'error'"]);
+			const { whereClause, params, limitClause } = buildFilterClauses(opts, [
+				"level = 'error'",
+			]);
 			const query = `SELECT * FROM events ${whereClause} ORDER BY created_at DESC ${limitClause}`;
-			const rows = db.prepare<EventRow, Record<string, string | number>>(query).all(params);
+			const rows = db
+				.prepare<EventRow, Record<string, string | number>>(query)
+				.all(params);
 			return rows.map(rowToEvent);
 		},
 
 		getTimeline(opts: EventQueryOptions & { since: string }): StoredEvent[] {
 			const { whereClause, params, limitClause } = buildFilterClauses(opts);
-			const query = `SELECT * FROM events ${whereClause} ORDER BY created_at ASC ${limitClause}`;
-			const rows = db.prepare<EventRow, Record<string, string | number>>(query).all(params);
+			const query = buildChronologicalQuery(
+				"SELECT * FROM events",
+				whereClause,
+				limitClause,
+			);
+			const rows = db
+				.prepare<EventRow, Record<string, string | number>>(query)
+				.all(params);
 			return rows.map(rowToEvent);
 		},
 
 		getToolStats(opts?: { agentName?: string; since?: string }): ToolStats[] {
-			const conditions: string[] = ["tool_name IS NOT NULL", "event_type = 'tool_start'"];
+			const conditions: string[] = [
+				"tool_name IS NOT NULL",
+				"event_type = 'tool_start'",
+			];
 			const params: Record<string, string> = {};
 
 			if (opts?.agentName !== undefined) {
@@ -314,7 +367,11 @@ export function createEventStore(dbPath: string): EventStore {
 			}));
 		},
 
-		purge(opts: { all?: boolean; olderThanMs?: number; agentName?: string }): number {
+		purge(opts: {
+			all?: boolean;
+			olderThanMs?: number;
+			agentName?: string;
+		}): number {
 			if (opts.all) {
 				const countRow = db
 					.prepare<{ cnt: number }, []>("SELECT COUNT(*) as cnt FROM events")
@@ -350,19 +407,14 @@ export function createEventStore(dbPath: string): EventStore {
 				.get(params);
 			const count = countRow?.cnt ?? 0;
 
-			db.prepare<void, Record<string, string>>(`DELETE FROM events WHERE ${whereClause}`).run(
-				params,
-			);
+			db.prepare<void, Record<string, string>>(
+				`DELETE FROM events WHERE ${whereClause}`,
+			).run(params);
 
 			return count;
 		},
 
 		close(): void {
-			try {
-				db.exec("PRAGMA wal_checkpoint(PASSIVE)");
-			} catch {
-				// Best effort -- checkpoint failure is non-fatal
-			}
 			db.close();
 		},
 	};

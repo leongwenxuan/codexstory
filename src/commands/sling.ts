@@ -30,6 +30,7 @@ import { inferDomain } from "../insights/analyzer.ts";
 import { createMulchClient } from "../mulch/client.ts";
 import { openSessionStore } from "../sessions/compat.ts";
 import { createRunStore } from "../sessions/store.ts";
+import { createSpawnQueueStore, type SpawnRequest } from "../spawn/queue.ts";
 import type { TrackerIssue } from "../tracker/factory.ts";
 import { createTrackerClient, resolveBackend, trackerCliName } from "../tracker/factory.ts";
 import type { AgentSession, OverlayConfig } from "../types.ts";
@@ -253,13 +254,38 @@ Options:
   --skip-scout                 Skip scout phase for lead agents (jump to build)
   --skip-task-check              Skip task existence validation (for worktree-created issues)
   --force-hierarchy            Bypass hierarchy validation (debugging only)
+  --idempotency-key <key>     Override queue idempotency key
+  --enqueue-only              Queue request and return request metadata only
   --json                     Output result as JSON
   --help, -h                 Show this help`;
 
-export async function slingCommand(args: string[]): Promise<void> {
+interface SlingLaunchOutput {
+	agentName: string;
+	capability: string;
+	taskId: string;
+	branch: string;
+	worktree: string;
+	tmuxSession: string;
+	pid: number;
+}
+
+function writeSlingLaunchOutput(output: SlingLaunchOutput, asJson: boolean): void {
+	if (asJson) {
+		process.stdout.write(`${JSON.stringify(output)}\n`);
+		return;
+	}
+	process.stdout.write(`🚀 Agent "${output.agentName}" launched!\n`);
+	process.stdout.write(`   Task:     ${output.taskId}\n`);
+	process.stdout.write(`   Branch:   ${output.branch}\n`);
+	process.stdout.write(`   Worktree: ${output.worktree}\n`);
+	process.stdout.write(`   Tmux:     ${output.tmuxSession}\n`);
+	process.stdout.write(`   PID:      ${output.pid}\n`);
+}
+
+async function slingDirectCommand(args: string[]): Promise<SlingLaunchOutput | null> {
 	if (args.includes("--help") || args.includes("-h")) {
 		process.stdout.write(`${SLING_HELP}\n`);
-		return;
+		return null;
 	}
 
 	const taskId = args.find((a) => !a.startsWith("--"));
@@ -279,6 +305,7 @@ export async function slingCommand(args: string[]): Promise<void> {
 	const forceHierarchy = args.includes("--force-hierarchy");
 	const skipScout = args.includes("--skip-scout");
 	const skipTaskCheck = args.includes("--skip-task-check");
+	const runIdFlag = getFlag(args, "--run-id");
 
 	if (!name || name.trim().length === 0) {
 		throw new ValidationError("--name is required for sling", { field: "name" });
@@ -364,23 +391,27 @@ export async function slingCommand(args: string[]): Promise<void> {
 	const currentRunPath = join(overstoryDir, "current-run.txt");
 	let runId: string;
 
-	const currentRunFile = Bun.file(currentRunPath);
-	if (await currentRunFile.exists()) {
-		runId = (await currentRunFile.text()).trim();
+	if (runIdFlag && runIdFlag.trim().length > 0) {
+		runId = runIdFlag.trim();
 	} else {
-		runId = `run-${new Date().toISOString().replace(/[:.]/g, "-")}`;
-		const runStore = createRunStore(join(overstoryDir, "sessions.db"));
-		try {
-			runStore.createRun({
-				id: runId,
-				startedAt: new Date().toISOString(),
-				coordinatorSessionId: null,
-				status: "active",
-			});
-		} finally {
-			runStore.close();
+		const currentRunFile = Bun.file(currentRunPath);
+		if (await currentRunFile.exists()) {
+			runId = (await currentRunFile.text()).trim();
+		} else {
+			runId = `run-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+			const runStore = createRunStore(join(overstoryDir, "sessions.db"));
+			try {
+				runStore.createRun({
+					id: runId,
+					startedAt: new Date().toISOString(),
+					coordinatorSessionId: null,
+					status: "active",
+				});
+			} finally {
+				runStore.close();
+			}
+			await Bun.write(currentRunPath, runId);
 		}
-		await Bun.write(currentRunPath, runId);
 	}
 
 	// 4b. Check per-run session limit
@@ -644,7 +675,7 @@ export async function slingCommand(args: string[]): Promise<void> {
 			await sendKeys(tmuxSessionName, "");
 		}
 
-		// 14. Output result
+		// 14. Build result
 		const output = {
 			agentName: name,
 			capability,
@@ -654,18 +685,258 @@ export async function slingCommand(args: string[]): Promise<void> {
 			tmuxSession: tmuxSessionName,
 			pid,
 		};
-
-		if (args.includes("--json")) {
-			process.stdout.write(`${JSON.stringify(output)}\n`);
-		} else {
-			process.stdout.write(`🚀 Agent "${name}" launched!\n`);
-			process.stdout.write(`   Task:     ${taskId}\n`);
-			process.stdout.write(`   Branch:   ${branchName}\n`);
-			process.stdout.write(`   Worktree: ${worktreePath}\n`);
-			process.stdout.write(`   Tmux:     ${tmuxSessionName}\n`);
-			process.stdout.write(`   PID:      ${pid}\n`);
-		}
+		return output;
 	} finally {
 		store.close();
+	}
+}
+
+function stripInternalQueueFlags(args: string[]): string[] {
+	const out: string[] = [];
+	for (let i = 0; i < args.length; i++) {
+		const arg = args[i];
+		if (!arg) continue;
+		if (arg === "--direct" || arg === "--enqueue-only" || arg === "--idempotency-key") {
+			if (arg === "--idempotency-key") i++;
+			continue;
+		}
+		if (arg === "--run-id") {
+			i++;
+			continue;
+		}
+		out.push(arg);
+	}
+	return out;
+}
+
+async function resolveOrCreateActiveRunId(overstoryDir: string): Promise<string> {
+	const dbPath = join(overstoryDir, "sessions.db");
+	const runStore = createRunStore(dbPath);
+	try {
+		const active = runStore.getActiveRun();
+		if (active) return active.id;
+		const runId = `run-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+		runStore.createRun({
+			id: runId,
+			startedAt: new Date().toISOString(),
+			coordinatorSessionId: null,
+			status: "active",
+		});
+		return runId;
+	} finally {
+		runStore.close();
+	}
+}
+
+export async function processQueuedSpawnRequestById(
+	projectRoot: string,
+	requestId: string,
+	owner: string,
+	leaseMs: number = 15_000,
+): Promise<void> {
+	const overstoryDir = join(projectRoot, ".codexstory");
+	const queue = createSpawnQueueStore(join(overstoryDir, "sessions.db"));
+	let req: SpawnRequest | null = null;
+	let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+	try {
+		req = queue.acquireById(requestId, owner, leaseMs);
+		if (!req) {
+			const existing = queue.getById(requestId);
+			if (
+				existing &&
+				existing.status === "running" &&
+				existing.leaseOwner === owner &&
+				existing.attemptCount <= existing.maxAttempts
+			) {
+				req = existing;
+			}
+		}
+		if (!req) {
+			return;
+		}
+
+		const heartbeatMs = Math.max(1_000, Math.floor(leaseMs / 2));
+		const acquiredRequestId = req.id;
+		heartbeatTimer = setInterval(() => {
+			try {
+				queue.heartbeat(acquiredRequestId, owner, leaseMs);
+			} catch {
+				// Best-effort lease extension while request is in progress.
+			}
+		}, heartbeatMs);
+
+		const output = await slingDirectCommand(stripInternalQueueFlags(req.args));
+		if (!output) {
+			throw new AgentError(`Spawn request ${requestId} returned no output`, {
+				agentName: req.agentName,
+			});
+		}
+		const completed = queue.completeSuccess(req.id, owner, JSON.stringify(output));
+		if (!completed) {
+			throw new AgentError(`Lost lease while completing spawn request ${req.id}`, {
+				agentName: req.agentName,
+			});
+		}
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		const retryable = !(err instanceof ValidationError) && !(err instanceof HierarchyError);
+		const errorCode = err instanceof ValidationError ? "validation" : retryable ? "transient" : "fatal";
+		const attempts = req?.attemptCount ?? 1;
+		const baseBackoffMs = Math.min(30_000, 1_000 * Math.pow(2, Math.max(0, attempts - 1)));
+		const jitterMs = Math.floor(Math.random() * 500);
+		const completed = queue.completeFailure(req?.id ?? requestId, owner, message, {
+			retryable,
+			errorCode,
+			backoffMs: baseBackoffMs + jitterMs,
+		});
+		if (!completed) {
+			throw err;
+		}
+		throw err;
+	} finally {
+		if (heartbeatTimer) {
+			clearInterval(heartbeatTimer);
+		}
+		queue.close();
+	}
+}
+
+async function waitForRequestTerminal(
+	projectRoot: string,
+	requestId: string,
+	pollMs: number,
+	timeoutMs: number,
+): Promise<SpawnRequest> {
+	const overstoryDir = join(projectRoot, ".codexstory");
+	const queue = createSpawnQueueStore(join(overstoryDir, "sessions.db"));
+	try {
+		const started = Date.now();
+		while (true) {
+			const req = queue.getById(requestId);
+			if (!req) {
+				throw new AgentError(`Spawn request disappeared: ${requestId}`, { agentName: "dispatcher" });
+			}
+			if (req.status === "succeeded" || req.status === "failed" || req.status === "dead_letter") {
+				return req;
+			}
+			if (Date.now() - started > timeoutMs) {
+				throw new AgentError(`Timed out waiting for spawn request ${requestId}`, {
+					agentName: req.agentName,
+				});
+			}
+			await Bun.sleep(pollMs);
+		}
+	} finally {
+		queue.close();
+	}
+}
+
+export async function slingCommand(args: string[]): Promise<void> {
+	if (args.includes("--help") || args.includes("-h")) {
+		process.stdout.write(`${SLING_HELP}\n`);
+		return;
+	}
+	if (args.includes("--direct")) {
+		const output = await slingDirectCommand(stripInternalQueueFlags(args));
+		if (output) {
+			writeSlingLaunchOutput(output, args.includes("--json"));
+		}
+		return;
+	}
+
+	const taskId = args.find((a) => !a.startsWith("--"));
+	const name = getFlag(args, "--name");
+	if (!taskId) {
+		throw new ValidationError("Task ID is required: codexstory sling <task-id>", {
+			field: "taskId",
+		});
+	}
+	if (!name || name.trim().length === 0) {
+		throw new ValidationError("--name is required for sling", { field: "name" });
+	}
+
+	const capability = getFlag(args, "--capability") ?? "builder";
+	const parentAgent = getFlag(args, "--parent") ?? null;
+	const depthStr = getFlag(args, "--depth");
+	const depth = depthStr !== undefined ? Number.parseInt(depthStr, 10) : 0;
+	if (Number.isNaN(depth) || depth < 0) {
+		throw new ValidationError("--depth must be a non-negative integer", {
+			field: "depth",
+			value: depthStr,
+		});
+	}
+
+	const cwd = process.cwd();
+	const config = await loadConfig(cwd);
+	if (!config.dispatch.enabled) {
+		const output = await slingDirectCommand(stripInternalQueueFlags(args));
+		if (output) {
+			writeSlingLaunchOutput(output, args.includes("--json"));
+		}
+		return;
+	}
+	const overstoryDir = join(config.project.root, ".codexstory");
+	const runId = await resolveOrCreateActiveRunId(overstoryDir);
+
+	const explicitKey = getFlag(args, "--idempotency-key");
+	const idempotencyKey =
+		explicitKey ??
+		`spawn:${runId}:${name}:${taskId}:${capability}:${parentAgent ?? "none"}:${depth}`;
+
+	const queue = createSpawnQueueStore(join(overstoryDir, "sessions.db"));
+	let request: SpawnRequest;
+	let reused = false;
+	try {
+		const argsForDirect = [...stripInternalQueueFlags(args), "--direct", "--run-id", runId];
+		const enqueued = queue.enqueue({
+			idempotencyKey,
+			runId,
+			taskId,
+			agentName: name,
+			capability,
+			parentAgent,
+			depth,
+			args: argsForDirect,
+			maxAttempts: config.dispatch.retryMaxAttempts,
+		});
+		request = enqueued.request;
+		reused = enqueued.reused;
+	} finally {
+		queue.close();
+	}
+
+	if (args.includes("--enqueue-only")) {
+		process.stdout.write(`${JSON.stringify({ requestId: request.id, reused, status: request.status })}\n`);
+		return;
+	}
+
+	if (!reused && request.status === "queued") {
+		await processQueuedSpawnRequestById(
+			config.project.root,
+			request.id,
+			`sling-${process.pid}`,
+			config.dispatch.claimLeaseMs,
+		);
+	}
+
+	const terminal = await waitForRequestTerminal(
+		config.project.root,
+		request.id,
+		config.dispatch.pollIntervalMs,
+		Math.max(config.dispatch.stuckTimeoutMs, 60_000),
+	);
+
+	if (terminal.status === "failed" || terminal.status === "dead_letter") {
+		throw new AgentError(terminal.errorText ?? `Spawn request failed: ${terminal.id}`, {
+			agentName: terminal.agentName,
+		});
+	}
+	if (terminal.resultJson) {
+		try {
+			const output = JSON.parse(terminal.resultJson) as SlingLaunchOutput;
+			writeSlingLaunchOutput(output, args.includes("--json"));
+		} catch {
+			process.stdout.write(`${terminal.resultJson}\n`);
+		}
 	}
 }

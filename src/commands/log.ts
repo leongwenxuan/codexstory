@@ -42,7 +42,10 @@ function getFlag(args: string[], flag: string): string | undefined {
  * Get or create a session timestamp directory for the agent.
  * Uses a file-based marker to track the current session directory.
  */
-async function getSessionDir(logsBase: string, agentName: string): Promise<string> {
+async function getSessionDir(
+	logsBase: string,
+	agentName: string,
+): Promise<string> {
 	const agentLogsDir = join(logsBase, agentName);
 	const markerPath = join(agentLogsDir, ".current-session");
 
@@ -128,7 +131,10 @@ function transitionToCompleted(projectRoot: string, agentName: string): void {
  * Look up an agent's session record.
  * Returns null if not found.
  */
-function getAgentSession(projectRoot: string, agentName: string): AgentSession | null {
+function getAgentSession(
+	projectRoot: string,
+	agentName: string,
+): AgentSession | null {
 	try {
 		const overstoryDir = join(projectRoot, ".codexstory");
 		const { store } = openSessionStore(overstoryDir);
@@ -371,17 +377,23 @@ export async function logCommand(args: string[]): Promise<void> {
 	const transcriptPathFlag = getFlag(args, "--transcript");
 
 	if (!event) {
-		throw new ValidationError("Event is required: codexstory log <event> --agent <name>", {
-			field: "event",
-		});
+		throw new ValidationError(
+			"Event is required: codexstory log <event> --agent <name>",
+			{
+				field: "event",
+			},
+		);
 	}
 
 	const validEvents = ["tool-start", "tool-end", "session-end"];
 	if (!validEvents.includes(event)) {
-		throw new ValidationError(`Invalid event "${event}". Valid: ${validEvents.join(", ")}`, {
-			field: "event",
-			value: event,
-		});
+		throw new ValidationError(
+			`Invalid event "${event}". Valid: ${validEvents.join(", ")}`,
+			{
+				field: "event",
+				value: event,
+			},
+		);
 	}
 
 	if (!agentName) {
@@ -398,14 +410,19 @@ export async function logCommand(args: string[]): Promise<void> {
 
 	// Extract fields from stdin payload (preferred) or fall back to flags
 	const toolName =
-		typeof stdinPayload?.tool_name === "string" ? stdinPayload.tool_name : toolNameFlag;
+		typeof stdinPayload?.tool_name === "string"
+			? stdinPayload.tool_name
+			: toolNameFlag;
 	const toolInput =
 		stdinPayload?.tool_input !== undefined &&
 		stdinPayload?.tool_input !== null &&
 		typeof stdinPayload.tool_input === "object"
 			? (stdinPayload.tool_input as Record<string, unknown>)
 			: null;
-	const sessionId = typeof stdinPayload?.session_id === "string" ? stdinPayload.session_id : null;
+	const sessionId =
+		typeof stdinPayload?.session_id === "string"
+			? stdinPayload.session_id
+			: null;
 	const transcriptPath =
 		typeof stdinPayload?.transcript_path === "string"
 			? stdinPayload.transcript_path
@@ -415,6 +432,7 @@ export async function logCommand(args: string[]): Promise<void> {
 	const config = await loadConfig(cwd);
 	const logsBase = join(config.project.root, ".codexstory", "logs");
 	const sessionDir = await getSessionDir(logsBase, agentName);
+	const eventsDbPath = join(config.project.root, ".codexstory", "events.db");
 
 	const logger = createLogger({
 		logDir: sessionDir,
@@ -422,84 +440,101 @@ export async function logCommand(args: string[]): Promise<void> {
 		verbose: config.logging.verbose,
 		redactSecrets: config.logging.redactSecrets,
 	});
-
-	switch (event) {
-		case "tool-start": {
-			// Backward compatibility: always write to per-agent log files
-			logger.toolStart(toolName, toolInput ?? {});
-			updateLastActivity(config.project.root, agentName);
-
-			// When --stdin is used, also write to EventStore for structured observability
-			if (useStdin) {
-				try {
-					const eventsDbPath = join(config.project.root, ".codexstory", "events.db");
-					const eventStore = createEventStore(eventsDbPath);
-					const filtered = toolInput
-						? filterToolArgs(toolName, toolInput)
-						: { args: {}, summary: toolName };
-					eventStore.insert({
-						runId: null,
-						agentName,
-						sessionId,
-						eventType: "tool_start",
-						toolName,
-						toolArgs: JSON.stringify(filtered.args),
-						toolDurationMs: null,
-						level: "info",
-						data: JSON.stringify({ summary: filtered.summary }),
-					});
-					eventStore.close();
-				} catch {
-					// Non-fatal: EventStore write should not break hook execution
-				}
-			}
-			break;
+	let eventStore = null as ReturnType<typeof createEventStore> | null;
+	if (useStdin) {
+		try {
+			eventStore = createEventStore(eventsDbPath);
+		} catch {
+			// Non-fatal: hook logging should continue even if EventStore can't open
 		}
-		case "tool-end": {
-			// Backward compatibility: always write to per-agent log files
-			logger.toolEnd(toolName, 0);
-			updateLastActivity(config.project.root, agentName);
+	}
 
-			// When --stdin is used, write to EventStore and correlate with tool-start
-			if (useStdin) {
-				try {
-					const eventsDbPath = join(config.project.root, ".codexstory", "events.db");
-					const eventStore = createEventStore(eventsDbPath);
-					const filtered = toolInput
-						? filterToolArgs(toolName, toolInput)
-						: { args: {}, summary: toolName };
-					eventStore.insert({
-						runId: null,
-						agentName,
-						sessionId,
-						eventType: "tool_end",
-						toolName,
-						toolArgs: JSON.stringify(filtered.args),
-						toolDurationMs: null,
-						level: "info",
-						data: JSON.stringify({ summary: filtered.summary }),
-					});
-					const correlation = eventStore.correlateToolEnd(agentName, toolName);
-					if (correlation) {
-						logger.toolEnd(toolName, correlation.durationMs);
+	try {
+		switch (event) {
+			case "tool-start": {
+				// Backward compatibility: always write to per-agent log files
+				logger.toolStart(toolName, toolInput ?? {});
+				updateLastActivity(config.project.root, agentName);
+
+				// When --stdin is used, also write to EventStore for structured observability
+				if (eventStore) {
+					try {
+						const filtered = toolInput
+							? filterToolArgs(toolName, toolInput)
+							: { args: {}, summary: toolName };
+						eventStore.insert({
+							runId: null,
+							agentName,
+							sessionId,
+							eventType: "tool_start",
+							toolName,
+							toolArgs: JSON.stringify(filtered.args),
+							toolDurationMs: null,
+							level: "info",
+							data: JSON.stringify({ summary: filtered.summary }),
+						});
+					} catch {
+						// Non-fatal: EventStore write should not break hook execution
 					}
-					eventStore.close();
-				} catch {
-					// Non-fatal: EventStore write should not break hook execution
+				}
+				break;
+			}
+			case "tool-end": {
+				// Backward compatibility: always write to per-agent log files
+				logger.toolEnd(toolName, 0);
+				updateLastActivity(config.project.root, agentName);
+
+				// When --stdin is used, write to EventStore and correlate with tool-start
+				if (eventStore) {
+					try {
+						const filtered = toolInput
+							? filterToolArgs(toolName, toolInput)
+							: { args: {}, summary: toolName };
+						eventStore.insert({
+							runId: null,
+							agentName,
+							sessionId,
+							eventType: "tool_end",
+							toolName,
+							toolArgs: JSON.stringify(filtered.args),
+							toolDurationMs: null,
+							level: "info",
+							data: JSON.stringify({ summary: filtered.summary }),
+						});
+						const correlation = eventStore.correlateToolEnd(
+							agentName,
+							toolName,
+						);
+						if (correlation) {
+							logger.toolEnd(toolName, correlation.durationMs);
+						}
+					} catch {
+						// Non-fatal: EventStore write should not break hook execution
+					}
 				}
 
 				// Throttled token snapshot recording
 				if (sessionId) {
 					try {
 						// Throttle check
-						const snapshotMarkerPath = join(logsBase, agentName, ".last-snapshot");
+						const snapshotMarkerPath = join(
+							logsBase,
+							agentName,
+							".last-snapshot",
+						);
 						const SNAPSHOT_INTERVAL_MS = 30_000;
 						const snapshotMarkerFile = Bun.file(snapshotMarkerPath);
 						let shouldSnapshot = true;
 
 						if (await snapshotMarkerFile.exists()) {
-							const lastTs = Number.parseInt(await snapshotMarkerFile.text(), 10);
-							if (!Number.isNaN(lastTs) && Date.now() - lastTs < SNAPSHOT_INTERVAL_MS) {
+							const lastTs = Number.parseInt(
+								await snapshotMarkerFile.text(),
+								10,
+							);
+							if (
+								!Number.isNaN(lastTs) &&
+								Date.now() - lastTs < SNAPSHOT_INTERVAL_MS
+							) {
 								shouldSnapshot = false;
 							}
 						}
@@ -514,7 +549,11 @@ export async function logCommand(args: string[]): Promise<void> {
 							if (transcriptPath) {
 								const usage = await parseTranscriptUsage(transcriptPath);
 								const cost = estimateCost(usage);
-								const metricsDbPath = join(config.project.root, ".codexstory", "metrics.db");
+								const metricsDbPath = join(
+									config.project.root,
+									".codexstory",
+									"metrics.db",
+								);
 								const metricsStore = createMetricsStore(metricsDbPath);
 								metricsStore.recordSnapshot({
 									agentName,
@@ -534,191 +573,224 @@ export async function logCommand(args: string[]): Promise<void> {
 						// Non-fatal: snapshot recording should not break tool-end handling
 					}
 				}
+				break;
 			}
-			break;
-		}
-		case "session-end":
-			logger.info("session.end", { agentName });
-			// Transition agent state to completed
-			transitionToCompleted(config.project.root, agentName);
-			// Look up agent session for identity update and metrics recording
-			{
-				const agentSession = getAgentSession(config.project.root, agentName);
-				const beadId = agentSession?.beadId ?? null;
+			case "session-end":
+				logger.info("session.end", { agentName });
+				// Transition agent state to completed
+				transitionToCompleted(config.project.root, agentName);
+				// Look up agent session for identity update and metrics recording
+				{
+					const agentSession = getAgentSession(config.project.root, agentName);
+					const beadId = agentSession?.beadId ?? null;
 
-				// Update agent identity with completed session
-				const identityBaseDir = join(config.project.root, ".codexstory", "agents");
-				try {
-					await updateIdentity(identityBaseDir, agentName, {
-						sessionsCompleted: 1,
-						completedTask: beadId ? { beadId, summary: `Completed task ${beadId}` } : undefined,
-					});
-				} catch {
-					// Non-fatal: identity may not exist for this agent
-				}
-
-				// Auto-nudge coordinator when a lead completes so it wakes up
-				// to process merge_ready / worker_done messages without waiting
-				// for user input (see decision mx-728f8d).
-				if (agentSession?.capability === "lead") {
+					// Update agent identity with completed session
+					const identityBaseDir = join(
+						config.project.root,
+						".codexstory",
+						"agents",
+					);
 					try {
-						const nudgesDir = join(config.project.root, ".codexstory", "pending-nudges");
-						const { mkdir } = await import("node:fs/promises");
-						await mkdir(nudgesDir, { recursive: true });
-						const markerPath = join(nudgesDir, "coordinator.json");
-						const marker = {
-							from: agentName,
-							reason: "lead_completed",
-							subject: `Lead ${agentName} completed — check mail for merge_ready/worker_done`,
-							messageId: `auto-nudge-${agentName}-${Date.now()}`,
-							createdAt: new Date().toISOString(),
-						};
-						await Bun.write(markerPath, `${JSON.stringify(marker, null, "\t")}\n`);
+						await updateIdentity(identityBaseDir, agentName, {
+							sessionsCompleted: 1,
+							completedTask: beadId
+								? { beadId, summary: `Completed task ${beadId}` }
+								: undefined,
+						});
 					} catch {
-						// Non-fatal: nudge failure should not break session-end
+						// Non-fatal: identity may not exist for this agent
 					}
-				}
 
-				// Record session metrics (with optional token data from transcript)
-				if (agentSession) {
-					// Auto-complete the current run when the coordinator exits.
-					// This handles the case where the user closes the tmux window
-					// without running `codexstory coordinator stop`.
-					if (agentSession.capability === "coordinator") {
+					// Auto-nudge coordinator when a lead completes so it wakes up
+					// to process merge_ready / worker_done messages without waiting
+					// for user input (see decision mx-728f8d).
+					if (agentSession?.capability === "lead") {
 						try {
-							const currentRunPath = join(config.project.root, ".codexstory", "current-run.txt");
-							const currentRunFile = Bun.file(currentRunPath);
-							if (await currentRunFile.exists()) {
-								const runId = (await currentRunFile.text()).trim();
-								if (runId.length > 0) {
-									const runStore = createRunStore(
-										join(config.project.root, ".codexstory", "sessions.db"),
-									);
-									try {
-										runStore.completeRun(runId, "completed");
-									} finally {
-										runStore.close();
-									}
-									const { unlink: unlinkFile } = await import("node:fs/promises");
-									try {
-										await unlinkFile(currentRunPath);
-									} catch {
-										// File may already be gone
+							const nudgesDir = join(
+								config.project.root,
+								".codexstory",
+								"pending-nudges",
+							);
+							const { mkdir } = await import("node:fs/promises");
+							await mkdir(nudgesDir, { recursive: true });
+							const markerPath = join(nudgesDir, "coordinator.json");
+							const marker = {
+								from: agentName,
+								reason: "lead_completed",
+								subject: `Lead ${agentName} completed — check mail for merge_ready/worker_done`,
+								messageId: `auto-nudge-${agentName}-${Date.now()}`,
+								createdAt: new Date().toISOString(),
+							};
+							await Bun.write(
+								markerPath,
+								`${JSON.stringify(marker, null, "\t")}\n`,
+							);
+						} catch {
+							// Non-fatal: nudge failure should not break session-end
+						}
+					}
+
+					// Record session metrics (with optional token data from transcript)
+					if (agentSession) {
+						// Auto-complete the current run when the coordinator exits.
+						// This handles the case where the user closes the tmux window
+						// without running `codexstory coordinator stop`.
+						if (agentSession.capability === "coordinator") {
+							try {
+								const currentRunPath = join(
+									config.project.root,
+									".codexstory",
+									"current-run.txt",
+								);
+								const currentRunFile = Bun.file(currentRunPath);
+								if (await currentRunFile.exists()) {
+									const runId = (await currentRunFile.text()).trim();
+									if (runId.length > 0) {
+										const runStore = createRunStore(
+											join(config.project.root, ".codexstory", "sessions.db"),
+										);
+										try {
+											runStore.completeRun(runId, "completed");
+										} finally {
+											runStore.close();
+										}
+										const { unlink: unlinkFile } = await import(
+											"node:fs/promises"
+										);
+										try {
+											await unlinkFile(currentRunPath);
+										} catch {
+											// File may already be gone
+										}
 									}
 								}
-							}
-						} catch {
-							// Non-fatal: run completion should not break session-end handling
-						}
-					}
-
-					try {
-						const metricsDbPath = join(config.project.root, ".codexstory", "metrics.db");
-						const metricsStore = createMetricsStore(metricsDbPath);
-						const now = new Date().toISOString();
-						const durationMs = new Date(now).getTime() - new Date(agentSession.startedAt).getTime();
-
-						// Parse token usage from transcript if path provided
-						let inputTokens = 0;
-						let outputTokens = 0;
-						let cacheReadTokens = 0;
-						let cacheCreationTokens = 0;
-						let estimatedCostUsd: number | null = null;
-						let modelUsed: string | null = null;
-
-						if (transcriptPath) {
-							try {
-								const usage = await parseTranscriptUsage(transcriptPath);
-								inputTokens = usage.inputTokens;
-								outputTokens = usage.outputTokens;
-								cacheReadTokens = usage.cacheReadTokens;
-								cacheCreationTokens = usage.cacheCreationTokens;
-								modelUsed = usage.modelUsed;
-								estimatedCostUsd = estimateCost(usage);
 							} catch {
-								// Non-fatal: transcript parsing should not break metrics
+								// Non-fatal: run completion should not break session-end handling
 							}
 						}
 
-						metricsStore.recordSession({
-							agentName,
-							beadId: agentSession.beadId,
-							capability: agentSession.capability,
-							startedAt: agentSession.startedAt,
-							completedAt: now,
-							durationMs,
-							exitCode: null,
-							mergeResult: null,
-							parentAgent: agentSession.parentAgent,
-							inputTokens,
-							outputTokens,
-							cacheReadTokens,
-							cacheCreationTokens,
-							estimatedCostUsd,
-							modelUsed,
-							runId: agentSession.runId,
-						});
-						metricsStore.close();
-					} catch {
-						// Non-fatal: metrics recording should not break session-end handling
+						try {
+							const metricsDbPath = join(
+								config.project.root,
+								".codexstory",
+								"metrics.db",
+							);
+							const metricsStore = createMetricsStore(metricsDbPath);
+							const now = new Date().toISOString();
+							const durationMs =
+								new Date(now).getTime() -
+								new Date(agentSession.startedAt).getTime();
+
+							// Parse token usage from transcript if path provided
+							let inputTokens = 0;
+							let outputTokens = 0;
+							let cacheReadTokens = 0;
+							let cacheCreationTokens = 0;
+							let estimatedCostUsd: number | null = null;
+							let modelUsed: string | null = null;
+
+							if (transcriptPath) {
+								try {
+									const usage = await parseTranscriptUsage(transcriptPath);
+									inputTokens = usage.inputTokens;
+									outputTokens = usage.outputTokens;
+									cacheReadTokens = usage.cacheReadTokens;
+									cacheCreationTokens = usage.cacheCreationTokens;
+									modelUsed = usage.modelUsed;
+									estimatedCostUsd = estimateCost(usage);
+								} catch {
+									// Non-fatal: transcript parsing should not break metrics
+								}
+							}
+
+							metricsStore.recordSession({
+								agentName,
+								beadId: agentSession.beadId,
+								capability: agentSession.capability,
+								startedAt: agentSession.startedAt,
+								completedAt: now,
+								durationMs,
+								exitCode: null,
+								mergeResult: null,
+								parentAgent: agentSession.parentAgent,
+								inputTokens,
+								outputTokens,
+								cacheReadTokens,
+								cacheCreationTokens,
+								estimatedCostUsd,
+								modelUsed,
+								runId: agentSession.runId,
+							});
+							metricsStore.close();
+						} catch {
+							// Non-fatal: metrics recording should not break session-end handling
+						}
+
+						// Auto-record expertise via mulch learn + record (post-session).
+						// Skip persistent agents whose Stop hook fires every turn.
+						if (!PERSISTENT_CAPABILITIES.has(agentSession.capability)) {
+							try {
+								const mulchClient = createMulchClient(config.project.root);
+								const mailDbPath = join(
+									config.project.root,
+									".codexstory",
+									"mail.db",
+								);
+								await autoRecordExpertise({
+									mulchClient,
+									agentName,
+									capability: agentSession.capability,
+									beadId,
+									mailDbPath,
+									parentAgent: agentSession.parentAgent,
+									projectRoot: config.project.root,
+									sessionStartedAt: agentSession.startedAt,
+								});
+							} catch {
+								// Non-fatal: mulch learn/record should not break session-end handling
+							}
+						}
 					}
 
-					// Auto-record expertise via mulch learn + record (post-session).
-					// Skip persistent agents whose Stop hook fires every turn.
-					if (!PERSISTENT_CAPABILITIES.has(agentSession.capability)) {
+					// Write session-end event to EventStore when --stdin is used
+					if (eventStore) {
 						try {
-							const mulchClient = createMulchClient(config.project.root);
-							const mailDbPath = join(config.project.root, ".codexstory", "mail.db");
-							await autoRecordExpertise({
-								mulchClient,
+							eventStore.insert({
+								runId: null,
 								agentName,
-								capability: agentSession.capability,
-								beadId,
-								mailDbPath,
-								parentAgent: agentSession.parentAgent,
-								projectRoot: config.project.root,
-								sessionStartedAt: agentSession.startedAt,
+								sessionId,
+								eventType: "session_end",
+								toolName: null,
+								toolArgs: null,
+								toolDurationMs: null,
+								level: "info",
+								data: transcriptPath
+									? JSON.stringify({ transcriptPath })
+									: null,
 							});
 						} catch {
-							// Non-fatal: mulch learn/record should not break session-end handling
+							// Non-fatal: EventStore write should not break session-end
 						}
 					}
 				}
-
-				// Write session-end event to EventStore when --stdin is used
-				if (useStdin) {
+				// Clear the current session marker
+				{
+					const markerPath = join(logsBase, agentName, ".current-session");
 					try {
-						const eventsDbPath = join(config.project.root, ".codexstory", "events.db");
-						const eventStore = createEventStore(eventsDbPath);
-						eventStore.insert({
-							runId: null,
-							agentName,
-							sessionId,
-							eventType: "session_end",
-							toolName: null,
-							toolArgs: null,
-							toolDurationMs: null,
-							level: "info",
-							data: transcriptPath ? JSON.stringify({ transcriptPath }) : null,
-						});
-						eventStore.close();
+						const { unlink } = await import("node:fs/promises");
+						await unlink(markerPath);
 					} catch {
-						// Non-fatal: EventStore write should not break session-end
+						// Marker may not exist
 					}
 				}
-			}
-			// Clear the current session marker
-			{
-				const markerPath = join(logsBase, agentName, ".current-session");
-				try {
-					const { unlink } = await import("node:fs/promises");
-					await unlink(markerPath);
-				} catch {
-					// Marker may not exist
-				}
-			}
-			break;
+				break;
+		}
+	} finally {
+		try {
+			eventStore?.close();
+		} catch {
+			// Non-fatal: store close should not break hook flow
+		}
+		logger.close();
 	}
-
-	logger.close();
 }

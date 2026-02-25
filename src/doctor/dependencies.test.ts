@@ -45,6 +45,14 @@ const mockConfig: OverstoryConfig = {
 		zombieThresholdMs: 600000,
 		nudgeIntervalMs: 60000,
 	},
+	dispatch: {
+		enabled: true,
+		maxWorkers: 1,
+		claimLeaseMs: 10000,
+		stuckTimeoutMs: 120000,
+		retryMaxAttempts: 1,
+		pollIntervalMs: 1000,
+	},
 	models: {},
 	logging: {
 		verbose: false,

@@ -80,6 +80,14 @@ export interface OverstoryConfig {
 		zombieThresholdMs: number; // When to kill
 		nudgeIntervalMs: number; // Time between progressive nudge stages (default 60_000)
 	};
+	dispatch: {
+		enabled: boolean; // Queue-driven dispatcher path
+		maxWorkers: number; // Concurrent spawn workers per dispatcher leader
+		claimLeaseMs: number; // Request lease duration
+		stuckTimeoutMs: number; // Stuck request timeout before reclaim
+		retryMaxAttempts: number; // Max attempts per spawn request
+		pollIntervalMs: number; // Dispatcher poll interval
+	};
 	models: Partial<Record<string, ModelRef>>;
 	logging: {
 		verbose: boolean;

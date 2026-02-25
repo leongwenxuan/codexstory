@@ -96,9 +96,11 @@ function buildLogDetail(event: LogEvent): string {
 
 	for (const [key, value] of Object.entries(event.data)) {
 		if (value !== null && value !== undefined) {
-			const strValue = typeof value === "string" ? value : JSON.stringify(value);
+			const strValue =
+				typeof value === "string" ? value : JSON.stringify(value);
 			// Truncate long values
-			const truncated = strValue.length > 80 ? `${strValue.slice(0, 77)}...` : strValue;
+			const truncated =
+				strValue.length > 80 ? `${strValue.slice(0, 77)}...` : strValue;
 			parts.push(`${key}=${truncated}`);
 		}
 	}
@@ -172,7 +174,9 @@ async function discoverLogFiles(
 	}
 
 	// Sort by session timestamp (chronological)
-	discovered.sort((a, b) => a.sessionTimestamp.localeCompare(b.sessionTimestamp));
+	discovered.sort((a, b) =>
+		a.sessionTimestamp.localeCompare(b.sessionTimestamp),
+	);
 
 	return discovered;
 }
@@ -261,7 +265,9 @@ function printLogs(events: LogEvent[]): void {
 		return;
 	}
 
-	w(`${color.dim}${events.length} ${events.length === 1 ? "entry" : "entries"}${color.reset}\n\n`);
+	w(
+		`${color.dim}${events.length} ${events.length === 1 ? "entry" : "entries"}${color.reset}\n\n`,
+	);
 
 	let lastDate = "";
 
@@ -330,6 +336,8 @@ async function followLogs(
 
 	// Track file positions for tailing
 	const filePositions = new Map<string, number>();
+	// Track partial trailing line per file between polls
+	const partialLines = new Map<string, string>();
 
 	while (true) {
 		const discovered = await discoverLogFiles(logsDir, filters.agent);
@@ -346,13 +354,17 @@ async function followLogs(
 			}
 
 			const lastPosition = filePositions.get(path) ?? 0;
+			const normalizedPosition = fileSize < lastPosition ? 0 : lastPosition;
 
-			if (fileSize > lastPosition) {
+			if (fileSize > normalizedPosition) {
 				// New data available
 				try {
-					const fullText = await file.text();
-					const newText = fullText.slice(lastPosition);
-					const lines = newText.split("\n");
+					const newText = await file.slice(normalizedPosition, fileSize).text();
+					const previousPartial = partialLines.get(path) ?? "";
+					const combined = previousPartial + newText;
+					const lines = combined.split("\n");
+					const trailing = lines.pop() ?? "";
+					partialLines.set(path, trailing);
 
 					for (const line of lines) {
 						if (line.trim() === "") {
@@ -370,7 +382,10 @@ async function followLogs(
 								const event = parsed as LogEvent;
 
 								// Apply level filter
-								if (filters.level !== undefined && event.level !== filters.level) {
+								if (
+									filters.level !== undefined &&
+									event.level !== filters.level
+								) {
 									continue;
 								}
 
@@ -401,9 +416,13 @@ async function followLogs(
 										levelColorCode = color.gray;
 								}
 
-								const agentLabel = event.agentName ? `[${event.agentName}]` : "[unknown]";
+								const agentLabel = event.agentName
+									? `[${event.agentName}]`
+									: "[unknown]";
 								const detail = buildLogDetail(event);
-								const detailSuffix = detail ? ` ${color.dim}${detail}${color.reset}` : "";
+								const detailSuffix = detail
+									? ` ${color.dim}${detail}${color.reset}`
+									: "";
 
 								w(
 									`${time} ${levelColorCode}${levelStr}${color.reset} ` +
@@ -419,6 +438,10 @@ async function followLogs(
 				} catch {
 					// File read error, skip
 				}
+			} else if (fileSize < lastPosition) {
+				// File was rotated or truncated.
+				filePositions.set(path, fileSize);
+				partialLines.delete(path);
 			}
 		}
 
@@ -467,11 +490,17 @@ export async function logsCommand(args: string[]): Promise<void> {
 	}
 
 	// Validate level if provided
-	if (level !== undefined && !["debug", "info", "warn", "error"].includes(level)) {
-		throw new ValidationError("--level must be one of: debug, info, warn, error", {
-			field: "level",
-			value: level,
-		});
+	if (
+		level !== undefined &&
+		!["debug", "info", "warn", "error"].includes(level)
+	) {
+		throw new ValidationError(
+			"--level must be one of: debug, info, warn, error",
+			{
+				field: "level",
+				value: level,
+			},
+		);
 	}
 
 	// Parse time filters
@@ -481,10 +510,13 @@ export async function logsCommand(args: string[]): Promise<void> {
 	if (sinceStr !== undefined) {
 		since = parseRelativeTime(sinceStr);
 		if (Number.isNaN(since.getTime())) {
-			throw new ValidationError("--since must be a valid ISO 8601 timestamp or relative time", {
-				field: "since",
-				value: sinceStr,
-			});
+			throw new ValidationError(
+				"--since must be a valid ISO 8601 timestamp or relative time",
+				{
+					field: "since",
+					value: sinceStr,
+				},
+			);
 		}
 	}
 

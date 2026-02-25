@@ -27,7 +27,13 @@ const EVENT_LABELS: Record<EventType, { label: string; color: string }> = {
 };
 
 /** Colors assigned to agents in order of first appearance. */
-const AGENT_COLORS = [color.blue, color.green, color.yellow, color.cyan, color.magenta] as const;
+const AGENT_COLORS = [
+	color.blue,
+	color.green,
+	color.yellow,
+	color.cyan,
+	color.magenta,
+] as const;
 
 /**
  * Parse a named flag value from args.
@@ -91,13 +97,19 @@ function buildEventDetail(event: StoredEvent): string {
 	if (event.data) {
 		try {
 			const parsed: unknown = JSON.parse(event.data);
-			if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+			if (
+				typeof parsed === "object" &&
+				parsed !== null &&
+				!Array.isArray(parsed)
+			) {
 				const data = parsed as Record<string, unknown>;
 				for (const [key, value] of Object.entries(data)) {
 					if (value !== null && value !== undefined) {
-						const strValue = typeof value === "string" ? value : JSON.stringify(value);
+						const strValue =
+							typeof value === "string" ? value : JSON.stringify(value);
 						// Truncate long values
-						const truncated = strValue.length > 60 ? `${strValue.slice(0, 57)}...` : strValue;
+						const truncated =
+							strValue.length > 60 ? `${strValue.slice(0, 57)}...` : strValue;
 						parts.push(`${key}=${truncated}`);
 					}
 				}
@@ -145,7 +157,11 @@ function printEvent(event: StoredEvent, colorMap: Map<string, string>): void {
 	};
 
 	const levelColor =
-		event.level === "error" ? color.red : event.level === "warn" ? color.yellow : "";
+		event.level === "error"
+			? color.red
+			: event.level === "warn"
+				? color.yellow
+				: "";
 	const levelReset = levelColor ? color.reset : "";
 
 	const detail = buildEventDetail(event);
@@ -203,10 +219,13 @@ export async function feedCommand(args: string[]): Promise<void> {
 	}
 
 	if (Number.isNaN(interval) || interval < 200) {
-		throw new ValidationError("--interval must be a number >= 200 (milliseconds)", {
-			field: "interval",
-			value: intervalStr,
-		});
+		throw new ValidationError(
+			"--interval must be a number >= 200 (milliseconds)",
+			{
+				field: "interval",
+				value: intervalStr,
+			},
+		);
 	}
 
 	// Validate timestamp if provided
@@ -237,10 +256,14 @@ export async function feedCommand(args: string[]): Promise<void> {
 
 	try {
 		// Default since: 5 minutes ago
-		const since = sinceStr ?? new Date(Date.now() - 5 * 60 * 1000).toISOString();
+		const since =
+			sinceStr ?? new Date(Date.now() - 5 * 60 * 1000).toISOString();
 
 		// Helper to query events based on filters
-		const queryEvents = (queryOpts: { since: string; limit: number }): StoredEvent[] => {
+		const queryEvents = (queryOpts: {
+			since: string;
+			limit: number;
+		}): StoredEvent[] => {
 			if (runId) {
 				return eventStore.getByRun(runId, queryOpts);
 			}
@@ -254,8 +277,8 @@ export async function feedCommand(args: string[]): Promise<void> {
 				}
 				// Sort by createdAt chronologically
 				allEvents.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-				// Apply limit after merge
-				return allEvents.slice(0, queryOpts.limit);
+				// Apply limit after merge (most recent N, preserving chronological order)
+				return allEvents.slice(-queryOpts.limit);
 			}
 			return eventStore.getTimeline(queryOpts);
 		};

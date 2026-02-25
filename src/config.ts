@@ -56,6 +56,14 @@ export const DEFAULT_CONFIG: OverstoryConfig = {
 		zombieThresholdMs: 600_000, // 10 minutes
 		nudgeIntervalMs: 60_000, // 1 minute between progressive nudge stages
 	},
+	dispatch: {
+		enabled: true,
+		maxWorkers: 3,
+		claimLeaseMs: 10_000,
+		stuckTimeoutMs: 120_000,
+		retryMaxAttempts: 1,
+		pollIntervalMs: 1_000,
+	},
 	models: {},
 	logging: {
 		verbose: false,
@@ -525,6 +533,40 @@ function validateConfig(config: OverstoryConfig): void {
 		throw new ValidationError("watchdog.zombieThresholdMs must be greater than staleThresholdMs", {
 			field: "watchdog.zombieThresholdMs",
 			value: config.watchdog.zombieThresholdMs,
+		});
+	}
+
+	if (!Number.isInteger(config.dispatch.maxWorkers) || config.dispatch.maxWorkers < 1) {
+		throw new ValidationError("dispatch.maxWorkers must be a positive integer", {
+			field: "dispatch.maxWorkers",
+			value: config.dispatch.maxWorkers,
+		});
+	}
+	if (!Number.isInteger(config.dispatch.claimLeaseMs) || config.dispatch.claimLeaseMs <= 0) {
+		throw new ValidationError("dispatch.claimLeaseMs must be a positive integer", {
+			field: "dispatch.claimLeaseMs",
+			value: config.dispatch.claimLeaseMs,
+		});
+	}
+	if (!Number.isInteger(config.dispatch.stuckTimeoutMs) || config.dispatch.stuckTimeoutMs <= 0) {
+		throw new ValidationError("dispatch.stuckTimeoutMs must be a positive integer", {
+			field: "dispatch.stuckTimeoutMs",
+			value: config.dispatch.stuckTimeoutMs,
+		});
+	}
+	if (
+		!Number.isInteger(config.dispatch.retryMaxAttempts) ||
+		config.dispatch.retryMaxAttempts < 1
+	) {
+		throw new ValidationError("dispatch.retryMaxAttempts must be a positive integer", {
+			field: "dispatch.retryMaxAttempts",
+			value: config.dispatch.retryMaxAttempts,
+		});
+	}
+	if (!Number.isInteger(config.dispatch.pollIntervalMs) || config.dispatch.pollIntervalMs < 200) {
+		throw new ValidationError("dispatch.pollIntervalMs must be an integer >= 200", {
+			field: "dispatch.pollIntervalMs",
+			value: config.dispatch.pollIntervalMs,
 		});
 	}
 

@@ -14,6 +14,7 @@ import { coordinatorCommand } from "./commands/coordinator.ts";
 import { costsCommand } from "./commands/costs.ts";
 import { dashboardCommand } from "./commands/dashboard.ts";
 import { doctorCommand } from "./commands/doctor.ts";
+import { dispatcherCommand } from "./commands/dispatcher.ts";
 import { errorsCommand } from "./commands/errors.ts";
 import { feedCommand } from "./commands/feed.ts";
 import { groupCommand } from "./commands/group.ts";
@@ -67,6 +68,7 @@ Commands:
   group <sub>             Task groups (create/status/add/remove/list)
   clean                   Wipe runtime state (nuclear cleanup)
   doctor                  Run health checks on codexstory setup
+  dispatcher <sub>        Spawn dispatcher queue worker (start/stop/status)
   worktree <sub>          Manage worktrees (list/clean)
   log <event>             Log a hook event
   logs [options]          Query NDJSON logs across agents
@@ -99,6 +101,7 @@ const COMMANDS = [
 	"inspect",
 	"clean",
 	"doctor",
+	"dispatcher",
 	"coordinator",
 	"supervisor",
 	"hooks",
@@ -225,6 +228,9 @@ async function main(): Promise<void> {
 			}
 			break;
 		}
+		case "dispatcher":
+			await dispatcherCommand(commandArgs);
+			break;
 		case "coordinator":
 			await coordinatorCommand(commandArgs);
 			break;
